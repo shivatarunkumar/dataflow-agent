@@ -1,0 +1,144 @@
+# Deterministic root-cause signatures (evaluated by the log analyst; see df-agent.md §19).
+#
+# Matching text = failure signal ONLY: the event's own error text, the ERROR DIGEST (normalised, e.g.
+#   "PERMISSION RuntimeError → HttpForbiddenError http=403 PERMISSION_DENIED permission=bigquery.tables.create ..."),
+#   and evidence from tools marked signal=True. Context evidence (quota readings, history, IAM listings) never matches.
+# Patterns must describe an ERROR, never just name a resource.
+#
+# when:         exact conditions on event facts (status, error_code, failed_check)
+# any_text:     regexes (case-insensitive unless case_sensitive: true)
+# confidence:   >= policies.signature_override_confidence (0.85) decides the category; the LLM only explains it.
+#               A domain verification (e.g. an IAM check) can raise it (CONFIRMED) or lower it (REFUTED).
+# remediation:  per action type, deterministic description/steps. {placeholders} come from the domain pack's
+#               remediation context (digest + verification + config); unknown ones render as "(unknown)".
+signatures:
+  # --- Platform / permissions -------------------------------------------------------------------------
+  - id: permission_denied
+    category: CONFIG
+    confidence: 0.92
+    when: {status: FAILED}
+    any_text: ['PERMISSION_DENIED', 'Access Denied', 'HttpForbiddenError', '\bhttp=403\b', "'status': '403'", '"code": 403',
+               'Permission [a-z]+\.[\w.]+ denied', 'does not have .{0,80} permission', 'accessDenied', 'IAM_PERMISSION_DENIED']
+    runbook: PERMISSION_DENIED
+    remediation:
+      PROPOSE_CONFIG_CHANGE:
+        description: >-
+          The pipeline's service account {principal} is missing IAM permission {permission} on {resource}
+          ({error_message}). {verification}
+        steps:
+          - "Grant {suggested_role} (it includes {permission}) to {principal} on {resource}: add it in Terraform (infra/iam.tf, local.dataflow_roles or a dataset-level binding), not by hand, so the next apply keeps it."
+          - "Apply the change: make gcs-setup"
+          - "Confirm: gcloud projects get-iam-policy {project} --flatten='bindings[].members' --filter='bindings.members:{principal}' --format='value(bindings.role)'"
+      RETRY_FILE:
+        description: "After the IAM fix is applied, re-run the file (the original is in invalid/)."
+        steps: ["make agent-approve INCIDENT={incident_id}"]
+
+  - id: bq_not_found
+    category: CONFIG
+    confidence: 0.88
+    when: {status: FAILED}
+    any_text: ['Not found: (Table|Dataset)', '\bnotFound\b', 'NOT_FOUND .{0,80}(table|dataset)']
+    runbook: BQ_NOT_FOUND
+    remediation:
+      PROPOSE_CONFIG_CHANGE:
+        description: "A BigQuery resource the pipeline writes to does not exist: {error_message}"
+        steps:
+          - "Check the table/dataset in infra/bigquery.tf and infra/bq/*.json, then run make gcs-setup to recreate it."
+          - "Retry: make agent-approve INCIDENT={incident_id}"
+
+  - id: template_missing
+    category: CONFIG
+    confidence: 0.88
+    when: {status: FAILED}
+    any_text: ['templates/gcs_to_bq.json.{0,80}(not found|No such object)', 'Unable to (find|read) template', 'image .{0,80} not found', 'manifest unknown']
+    runbook: TEMPLATE_MISSING
+    remediation:
+      PROPOSE_CONFIG_CHANGE:
+        description: "The Dataflow flex template or its image is missing: {error_message}"
+        steps: ["make docker", "Retry: make agent-approve INCIDENT={incident_id}"]
+
+  # --- Transient ---------------------------------------------------------------------------------------
+  - id: quota_exceeded
+    category: TRANSIENT_INFRA
+    confidence: 0.9
+    when: {status: FAILED}
+    any_text: ['QUOTA_EXCEEDED', 'RESOURCE_EXHAUSTED', 'Quota .{0,40} exceeded']
+    runbook: QUOTA_EXCEEDED
+
+  - id: bq_rate_limit
+    category: TRANSIENT_INFRA
+    confidence: 0.85
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['rateLimitExceeded', 'quotaExceeded', '\bhttp=429\b']
+    runbook: QUOTA_EXCEEDED
+
+  - id: launcher_vm_failed
+    category: TRANSIENT_INFRA
+    confidence: 0.85
+    when: {status: FAILED}
+    any_text: ['Failed to start the launcher VM', 'ZONE_RESOURCE_POOL_EXHAUSTED', 'does not have enough resources available', 'Startup of the worker pool .{0,40} failed']
+    runbook: QUOTA_EXCEEDED
+
+  - id: transient_backend
+    category: TRANSIENT_INFRA
+    confidence: 0.72
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['\bUNAVAILABLE\b', 'backendError', 'An internal error occurred', 'DEADLINE_EXCEEDED', 'HTTP 50[0-9]', '\bhttp=50[0-9]\b', 'Connection reset']
+    runbook: DATAFLOW_JOB_FAILED
+
+  - id: poll_timeout
+    category: TRANSIENT_INFRA
+    confidence: 0.6
+    when: {status: FAILED}
+    any_text: ['POLL_TIMEOUT']
+    runbook: DATAFLOW_JOB_FAILED
+
+  # --- Code ----------------------------------------------------------------------------------------------
+  - id: encoding_error
+    category: CODE_BUG
+    confidence: 0.9
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['UnicodeDecodeError', 'UnicodeEncodeError', "codec can't (de|en)code byte"]
+    runbook: ENCODING_ERROR
+
+  - id: bq_schema_mismatch
+    category: CODE_BUG
+    confidence: 0.85
+    when: {status: FAILED}
+    any_text: ['No such field', 'Provided Schema does not match', 'Invalid schema update', 'too many errors.{0,80}(schema|JSON)', 'Cannot convert value']
+    runbook: BQ_SCHEMA_MISMATCH
+
+  # An exception raised from OUR code (a frame in pipeline/...py), not from Beam/GCP client internals.
+  - id: pipeline_code_exception
+    category: CODE_BUG
+    confidence: 0.8
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['File "[^"]*/pipeline/[\w/]+\.py"']
+    runbook: DATAFLOW_JOB_FAILED
+
+  # Every Dataflow failure contains a traceback: on its own this is only a weak hint, never decisive.
+  - id: python_traceback
+    category: CODE_BUG
+    confidence: 0.55
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['Traceback \(most recent call last\)']
+    runbook: DATAFLOW_JOB_FAILED
+
+  - id: recon_mismatch
+    category: CODE_BUG
+    confidence: 0.6
+    when: {status: FAILED, error_code: RECON_MISMATCH}
+    runbook: RECON_MISMATCH
+
+  # --- REJECTED: data contract failures (one per check so the right runbook is loaded) ------------------
+  - {id: rejected_header, category: DATA_QUALITY, confidence: 0.95, when: {status: REJECTED, failed_check: header}, runbook: header}
+  - {id: rejected_trailer, category: DATA_QUALITY, confidence: 0.95, when: {status: REJECTED, failed_check: trailer}, runbook: trailer}
+  - {id: rejected_delimiter, category: DATA_QUALITY, confidence: 0.95, when: {status: REJECTED, failed_check: delimiter}, runbook: delimiter}
+  - {id: rejected_data_type, category: DATA_QUALITY, confidence: 0.95, when: {status: REJECTED, failed_check: data_type}, runbook: data_type}
+  - {id: rejected_file_name, category: DATA_QUALITY, confidence: 0.95, when: {status: REJECTED, failed_check: file_name}, runbook: file_name}
+  - {id: rejected_contract, category: DATA_QUALITY, confidence: 0.95, when: {status: REJECTED, failed_check: contract_match}, runbook: contract_match}

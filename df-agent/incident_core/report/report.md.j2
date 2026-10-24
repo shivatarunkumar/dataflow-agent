@@ -1,0 +1,127 @@
+# Incident {{ incident_id }}: {{ event.title }}
+
+| | |
+|---|---|
+| **Severity** | {{ severity }} |
+| **Status** | {{ status }} |
+| **Root cause** | {{ rc.category }} (confidence {{ "%.2f"|format(rc.confidence) }}, via {{ rc.method }}) |
+| **Generated** | {{ generated_at }} by df-agent ({{ llm_label }}) |
+
+## Summary
+{% if rc.category == "NO_INCIDENT" %}
+**Not an incident: no action required.**
+
+{% endif %}
+{{ rc.summary }}
+
+{% if rc.primary_error %}
+## What failed
+| | |
+|---|---|
+| **Primary error** | {{ rc.primary_error.kind|upper }}{% if rc.primary_error.exception_chain %}: {{ rc.primary_error.exception_chain|join(" → ") }}{% endif %} |
+{% if rc.primary_error.http_code or rc.primary_error.status %}| **HTTP / status** | {{ rc.primary_error.http_code or "-" }} / {{ rc.primary_error.status or "-" }}{% if rc.primary_error.reason %} ({{ rc.primary_error.reason }}){% endif %} |
+{% endif %}{% if rc.primary_error.permission %}| **Permission** | `{{ rc.primary_error.permission }}` |
+{% endif %}{% if rc.primary_error.resource %}| **Resource** | `{{ rc.primary_error.resource }}` |
+{% endif %}{% if rc.failing_step %}| **Failing step** | `{{ rc.failing_step|truncate(120) }}` |
+{% endif %}| **Message** | {{ rc.primary_error.message|replace("|", "/")|truncate(400) }} |
+| **Occurrences** | {{ rc.primary_error.count }} (in {{ rc.primary_error.sources|join(", ") }}) |
+
+{% if rc.verification %}**Verification ({{ rc.verification.verdict }}):** {{ rc.verification.summary }} [{{ rc.verification.evidence_id }}]
+
+{% endif %}
+All distinct errors (error digest):
+```
+{{ rc.digest_text }}
+```
+{% endif %}
+
+{% if executed %}**Done automatically:** {% for e in executed %}{{ e.action_type }} ({{ e.status }}{% if e.result.gcs_uri %}: {{ e.result.gcs_uri }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}.
+{% endif %}
+{% if human_actions %}**Needs a human:** {{ human_actions|length }} action(s), listed below.
+{% endif %}
+
+## Facts
+| Field | Value |
+|---|---|
+{% for label, value in sections.facts %}| {{ label }} | {{ value if value is not none else "-" }} |
+{% endfor %}
+
+{% if sections.timeline %}
+## Timeline
+| Time | Event |
+|---|---|
+{% for t, what in sections.timeline %}| {{ t }} | {{ what }} |
+{% endfor %}
+{% endif %}
+
+{% if sections.failed_checks %}
+## Failed checks
+| Check | Summary | Rules |
+|---|---|---|
+{% for c in sections.failed_checks %}| {{ c.check_name }} | {{ c.summary }} | {{ c.failed_rules or "-" }} |
+{% endfor %}
+{% endif %}
+
+## Root cause analysis
+- **Category:** {{ rc.category }}
+- **Confidence:** {{ "%.2f"|format(rc.confidence) }}
+{% if rc.signature %}- **Matched signature:** `{{ rc.signature.id }}` ({{ rc.signature.category }}, {{ rc.signature.confidence }}){% if rc.signature.matched_text %}, found in `{{ rc.signature.matched_in }}`: "{{ rc.signature.matched_text|replace("\n", " ")|truncate(200) }}"{% else %}, matched on event facts{% endif %}
+{% endif %}
+- **Supporting evidence:** {{ rc.evidence_refs|join(", ") if rc.evidence_refs else "see evidence below" }}
+- **Runbooks consulted:** {{ rc.runbooks|join(", ") if rc.runbooks else "-" }}
+
+## Actions
+{% for a in actions %}
+### {{ loop.index }}. {{ a.type }} ({{ a.decision.decision }})
+{{ a.description }}
+
+{% if a.steps %}Steps:
+{% for s in a.steps %}1. {{ s }}
+{% endfor %}{% endif %}
+{% if a.params %}Parameters: `{{ a.params|tojson }}`
+{% endif %}
+Decision reasons: {{ a.decision.reasons|join("; ") }}
+{% if a.decision.decision == "NEEDS_HUMAN" %}
+To approve: `make agent-approve INCIDENT={{ incident_id }}`{% if a.manual_command %} (or run manually: `{{ a.manual_command }}`){% endif %}
+{% endif %}
+{% if a.patch %}
+Proposed patch (`proposed.patch`, not applied):
+```diff
+{{ a.patch }}
+```
+{% endif %}
+{% endfor %}
+
+{% if code_reviews %}
+## Code review
+{% for r in code_reviews %}- **{{ r.verdict }}** (risk {{ r.risk }}){% if r.git_apply_check %}, git apply --check: {{ "ok" if r.git_apply_check.applies else "FAILS" }}{% endif %}
+{% for c in r.comments %}  - {{ c }}
+{% endfor %}{% endfor %}
+{% endif %}
+
+## Evidence
+| Id | Kind | Summary |
+|---|---|---|
+{% for e in evidence %}| {{ e.id }} | {{ e.kind }} | {{ e.summary|replace("|", "/")|replace("\n", " ")|truncate(300) }} |
+{% endfor %}
+
+Full evidence: `evidence.json`.
+
+{% if sections.links %}
+## Links
+{% for name, url in sections.links.items() %}- {{ name }}: {{ url }}
+{% endfor %}
+{% endif %}
+
+## Investigation trace
+{{ trace_stats }}
+
+{{ trace_table }}
+
+Full trace: `trace.jsonl` / `trace.md`; LLM prompts and responses: `llm/`.
+
+{% if notes %}
+## Agent notes
+{% for n in notes %}- {{ n }}
+{% endfor %}
+{% endif %}

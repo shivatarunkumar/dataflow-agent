@@ -1,0 +1,22 @@
+customer_id,first_name,last_name,email,phone,country,signup_date,is_active
+1,Ana,Patel,ana.patel1@example.com,+44 7700 900001,UK,2025-10-09,true
+2,Ben,Khan,ben.khan2@example.com,+44 7700 900002,US,2025-04-15,true
+3,Chloe,Shah,chloe.shah3@example.com,+44 7700 900003,CA,2025-02-02,true
+4,Dev,Patel,dev.patel4@example.com,,US,2025-08-27,true
+5,Ella,Evans,ella.evans5@example.com,+44 7700 900005,US,2026-07-13,false
+6,Farah,Khan,farah.khan6@example.com,+44 7700 900006,CA,2025-10-12,true
+7,George,Jones,george.jones7@example.com,+44 7700 900007,DE,2026-03-09,false
+8,Hana,Brown,hana.brown8@example.com,,US,2025-08-09,false
+9,Ivan,Patel,ivan.patel9@example.com,+44 7700 900009,UK,2026-01-25,true
+10,Jade,Singh,jade.singh10@example.com,+44 7700 900010,FR,2025-12-19,false
+11,Kiran,Smith,kiran.smith11@example.com,+44 7700 900011,DE,2026-04-16,true
+12,Liam,Taylor,liam.taylor12@example.com,,UK,2026-07-20,false
+13,Maya,Shah,maya.shah13@example.com,+44 7700 900013,FR,2026-01-06,true
+14,Noah,Patel,noah.patel14@example.com,+44 7700 900014,UK,2025-08-22,false
+15,Olivia,Patel,olivia.patel15@example.com,+44 7700 900015,FR,2025-08-27,true
+16,Priya,Taylor,priya.taylor16@example.com,,IN,2026-04-10,false
+17,Quinn,Jones,quinn.jones17@example.com,+44 7700 900017,IN,2025-12-30,true
+18,Ravi,Brown,ravi.brown18@example.com,+44 7700 900018,DE,2025-03-15,true
+19,Sara,Evans,sara.evans19@example.com,+44 7700 900019,DE,2025-09-08,true
+20,Tom,Wilson,tom.wilson20@example.com,,CA,2025-10-04,true
+T|20|20261015

@@ -1,0 +1,372 @@
+{
+  "incident_id": "ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15",
+  "expected_category": "CONFIG",
+  "note": "dataflow SA lost bigquery.dataEditor",
+  "added_at": "2026-10-20T13:51:28.325119+00:00",
+  "event": {
+    "incident_id": "ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15",
+    "status": "FAILED",
+    "subject": "customer_20261015.csv",
+    "title": "FAILED customer_load customer_20261015.csv",
+    "facts": {
+      "status": "FAILED",
+      "error_code": "DATAFLOW_JOB_FAILED",
+      "failed_checks": [],
+      "dataflow_state": "JOB_STATE_FAILED"
+    },
+    "runbook_hints": [],
+    "text": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. \nDataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. \nJOB_STATE_FAILED\nTraceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^\nTraceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^\nTraceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^\nTraceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^\nWorkflow failed. Causes: S56:LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/Read+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/GroupByWindow+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/FlatMap(restore_metadata_default_window)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/RemoveRandomKeys+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/TriggerLoadJobsWithTempTables/ParDo(TriggerLoadJobs)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/Map(<lambda at bigquery_file_loads.py:1157>)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ParDo(UpdateDestinationSchema) failed., The job failed because a work item has failed 4 times. Look in previous log entries for the cause of each one of the 4 failures. For more information, see https://cloud.google.com/dataflow/docs/guides/common-errors#job-failed-four-times. The work item was attempted on these workers: \n      Root cause: Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._in",
+    "links": {
+      "dataflow": "https://console.cloud.google.com/dataflow/jobs/europe-west2/2026-10-20_06_15_29-8208812364296540637?project=bigquerytarun",
+      "workflow_execution": "https://console.cloud.google.com/workflows/workflow/europe-west2/dfa-ingest-file/execution/03d73fd2-89b1-4262-9133-7113042e64b8?project=bigquerytarun"
+    },
+    "job": {
+      "attempt_number": "1",
+      "contract_name": null,
+      "end_time": "2026-10-20 13:23:34.669140+00",
+      "error_code": "DATAFLOW_JOB_FAILED",
+      "error_message": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+      "job_id": "ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15",
+      "job_name": "customer_load",
+      "recon_status": null,
+      "rows_in_file": null,
+      "rows_loaded": null,
+      "start_time": "2026-10-20 13:15:27.985614+00",
+      "status": "FAILED",
+      "status_reason": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+      "target_table": null,
+      "validation_status": null
+    },
+    "file": {
+      "bucket": "bigquerytarun-dfa-landing",
+      "final_path": "gs://bigquerytarun-dfa-landing/invalid/2026/10/20/customer_20261015.csv",
+      "generation": "1792502125415531",
+      "name": "landing/customer_20261015.csv",
+      "original_path": "gs://bigquerytarun-dfa-landing/landing/customer_20261015.csv"
+    },
+    "dataflow": {
+      "console_url": "https://console.cloud.google.com/dataflow/jobs/europe-west2/2026-10-20_06_15_29-8208812364296540637?project=bigquerytarun",
+      "error_messages": [
+        {
+          "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+          "time": "2026-10-20T13:21:52.672Z"
+        },
+        {
+          "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+          "time": "2026-10-20T13:21:54.972Z"
+        },
+        {
+          "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+          "time": "2026-10-20T13:21:56.973Z"
+        },
+        {
+          "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+          "time": "2026-10-20T13:21:58.821Z"
+        },
+        {
+          "text": "Workflow failed. Causes: S56:LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/Read+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/GroupByWindow+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/FlatMap(restore_metadata_default_window)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/RemoveRandomKeys+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/TriggerLoadJobsWithTempTables/ParDo(TriggerLoadJobs)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/Map(<lambda at bigquery_file_loads.py:1157>)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ParDo(UpdateDestinationSchema) failed., The job failed because a work item has failed 4 times. Look in previous log entries for the cause of each one of the 4 failures. For more information, see https://cloud.google.com/dataflow/docs/guides/common-errors#job-failed-four-times. The work item was attempted on these workers: \n      Root cause: Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._in",
+          "time": "2026-10-20T13:21:59.245Z"
+        }
+      ],
+      "job_id": "2026-10-20_06_15_29-8208812364296540637",
+      "launch_error": "",
+      "state": "JOB_STATE_FAILED"
+    },
+    "orchestration": {
+      "console_url": "https://console.cloud.google.com/workflows/workflow/europe-west2/dfa-ingest-file/execution/03d73fd2-89b1-4262-9133-7113042e64b8?project=bigquerytarun",
+      "execution_id": "03d73fd2-89b1-4262-9133-7113042e64b8",
+      "workflow": "dfa-ingest-file"
+    },
+    "failed_checks": [],
+    "raw": {
+      "audit_queries": {
+        "job_metadata": "SELECT * FROM `bigquerytarun.file_audit.job_metadata` WHERE job_id = 'ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15'",
+        "validation_metadata": "SELECT * FROM `bigquerytarun.file_audit.validation_metadata` WHERE job_id = 'ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15' ORDER BY check_name"
+      },
+      "dataflow": {
+        "console_url": "https://console.cloud.google.com/dataflow/jobs/europe-west2/2026-10-20_06_15_29-8208812364296540637?project=bigquerytarun",
+        "error_messages": [
+          {
+            "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+            "time": "2026-10-20T13:21:52.672Z"
+          },
+          {
+            "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+            "time": "2026-10-20T13:21:54.972Z"
+          },
+          {
+            "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+            "time": "2026-10-20T13:21:56.973Z"
+          },
+          {
+            "text": "Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\n  File \"apache_beam/runners/common.py\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\", line 843, in process\n    job_reference = self.bq_wrapper.perform_load_job(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 1084, in perform_load_job\n    return self._insert_load_job(\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\", line 300, in wrapper\n    return fun(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 584, in _insert_load_job\n    return self._start_job(request, stream=source_stream).jobReference\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\", line 616, in _start_job\n    response = self.client.jobs.Insert(request, upload=upload)\n               ^^^^^",
+            "time": "2026-10-20T13:21:58.821Z"
+          },
+          {
+            "text": "Workflow failed. Causes: S56:LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/Read+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/GroupByWindow+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/FlatMap(restore_metadata_default_window)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/RemoveRandomKeys+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/TriggerLoadJobsWithTempTables/ParDo(TriggerLoadJobs)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/Map(<lambda at bigquery_file_loads.py:1157>)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ParDo(UpdateDestinationSchema) failed., The job failed because a work item has failed 4 times. Look in previous log entries for the cause of each one of the 4 failures. For more information, see https://cloud.google.com/dataflow/docs/guides/common-errors#job-failed-four-times. The work item was attempted on these workers: \n      Root cause: Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in apache_beam.runners.common.PerWindowInvoker._in",
+            "time": "2026-10-20T13:21:59.245Z"
+          }
+        ],
+        "job_id": "2026-10-20_06_15_29-8208812364296540637",
+        "launch_error": "",
+        "state": "JOB_STATE_FAILED"
+      },
+      "event_type": "ingestion.job.failed",
+      "failed_checks": [],
+      "file": {
+        "bucket": "bigquerytarun-dfa-landing",
+        "final_path": "gs://bigquerytarun-dfa-landing/invalid/2026/10/20/customer_20261015.csv",
+        "generation": "1792502125415531",
+        "name": "landing/customer_20261015.csv",
+        "original_path": "gs://bigquerytarun-dfa-landing/landing/customer_20261015.csv"
+      },
+      "job": {
+        "attempt_number": "1",
+        "contract_name": null,
+        "end_time": "2026-10-20 13:23:34.669140+00",
+        "error_code": "DATAFLOW_JOB_FAILED",
+        "error_message": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+        "job_id": "ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15",
+        "job_name": "customer_load",
+        "recon_status": null,
+        "rows_in_file": null,
+        "rows_loaded": null,
+        "start_time": "2026-10-20 13:15:27.985614+00",
+        "status": "FAILED",
+        "status_reason": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+        "target_table": null,
+        "validation_status": null
+      },
+      "orchestration": {
+        "console_url": "https://console.cloud.google.com/workflows/workflow/europe-west2/dfa-ingest-file/execution/03d73fd2-89b1-4262-9133-7113042e64b8?project=bigquerytarun",
+        "execution_id": "03d73fd2-89b1-4262-9133-7113042e64b8",
+        "workflow": "dfa-ingest-file"
+      },
+      "published_at": "2026-10-20T13:23:40.048272Z",
+      "retry_hint": "Processing failed (see dataflow.error_messages / launch_error). After fixing the cause, re-upload the same file to landing/ to retry; the original is in final_path.",
+      "schema_version": "1"
+    }
+  },
+  "evidence": [
+    {
+      "id": "audit-1",
+      "source": "audit",
+      "kind": "get_job",
+      "summary": "job ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15: status=FAILED error_code=DATAFLOW_JOB_FAILED rows_in_file=None rows_loaded=None validation=None recon=None reason=Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+      "data": {
+        "job_id": "ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15",
+        "job_name": "customer_load",
+        "trigger_type": "PUBSUB",
+        "pubsub_message_id": "22061993761574139",
+        "pubsub_subscription": "projects/bigquerytarun/subscriptions/eventarc-europe-west2-dfa-file-landed-sub-873",
+        "delivery_attempt": null,
+        "attempt_number": 1,
+        "is_retried": false,
+        "status": "FAILED",
+        "status_reason": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+        "start_time": "2026-10-20 13:15:27.985614+00:00",
+        "end_time": "2026-10-20 13:23:34.669140+00:00",
+        "duration_seconds": 486.683,
+        "source_bucket": "bigquerytarun-dfa-landing",
+        "file_name": "customer_20261015.csv",
+        "file_path": "gs://bigquerytarun-dfa-landing/landing/customer_20261015.csv",
+        "file_generation": "1792502125415531",
+        "file_size_bytes": 1513,
+        "file_format": "csv",
+        "file_date": null,
+        "file_created_at": "2026-10-20 13:15:25.421000+00:00",
+        "staged_file_path": null,
+        "final_file_path": "gs://bigquerytarun-dfa-landing/invalid/2026/10/20/customer_20261015.csv",
+        "contract_name": null,
+        "contract_version": null,
+        "target_table": null,
+        "load_mode": null,
+        "bq_load_job_id": null,
+        "rows_in_file": null,
+        "rows_loaded": null,
+        "rows_failed_validation": null,
+        "validation_status": null,
+        "validation_rules_executed": null,
+        "validation_rules_failed": null,
+        "recon_status": null,
+        "error_code": "DATAFLOW_JOB_FAILED",
+        "error_message": "Dataflow job 2026-10-20_06_15_29-8208812364296540637 ended in JOB_STATE_FAILED. ",
+        "error_details": null,
+        "gcp_project": "bigquerytarun",
+        "gcp_region": "europe-west2",
+        "service_name": "workflows",
+        "service_revision": "03d73fd2-89b1-4262-9133-7113042e64b8",
+        "service_version": null,
+        "created_by": null,
+        "custom_labels": null,
+        "created_at": "2026-10-20 13:15:27.985614+00:00",
+        "updated_at": "2026-10-20 13:23:36.786113+00:00"
+      },
+      "signal": true
+    },
+    {
+      "id": "audit-2",
+      "source": "audit",
+      "kind": "get_validation_results",
+      "summary": "0 checks for ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15; failed: none",
+      "data": [],
+      "signal": true
+    },
+    {
+      "id": "audit-3",
+      "source": "audit",
+      "kind": "get_file_history",
+      "summary": "2 jobs for file customer_20261015.csv (newest first): ['FAILED', 'SUCCESS']",
+      "data": [
+        {
+          "job_id": "ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15",
+          "status": "FAILED",
+          "error_code": "DATAFLOW_JOB_FAILED",
+          "file_generation": "1792502125415531",
+          "attempt_number": 1,
+          "final_file_path": "gs://bigquerytarun-dfa-landing/invalid/2026/10/20/customer_20261015.csv",
+          "created_at": "2026-10-20 13:15:27.985614+00:00"
+        },
+        {
+          "job_id": "5691624c-e105-44c5-9032-c901237f77c4",
+          "status": "SUCCESS",
+          "error_code": null,
+          "file_generation": "1792501487257424",
+          "attempt_number": 1,
+          "final_file_path": "gs://bigquerytarun-dfa-landing/archive/2026/10/20/customer_20261015.csv",
+          "created_at": "2026-10-20 13:04:54.592410+00:00"
+        }
+      ],
+      "signal": false
+    },
+    {
+      "id": "audit-4",
+      "source": "audit",
+      "kind": "get_agent_history",
+      "summary": "0 previous agent records for customer_20261015.csv; retries executed: 0",
+      "data": [],
+      "signal": false
+    },
+    {
+      "id": "audit-5",
+      "source": "audit",
+      "kind": "get_recent_failures",
+      "summary": "customer_load outcomes in the last 24h: [('FAILED', 'DATAFLOW_JOB_FAILED', 1), ('SUCCESS', None, 1)]",
+      "data": [
+        {
+          "status": "FAILED",
+          "error_code": "DATAFLOW_JOB_FAILED",
+          "jobs": 1
+        },
+        {
+          "status": "SUCCESS",
+          "error_code": null,
+          "jobs": 1
+        }
+      ],
+      "signal": false
+    },
+    {
+      "id": "gcp-1",
+      "source": "gcp",
+      "kind": "get_dataflow_job",
+      "summary": "Dataflow job 2026-10-20_06_15_29-8208812364296540637: JOB_STATE_FAILED (created 2026-10-20T13:15:30.153227+00:00)",
+      "data": {
+        "name": "ingest-ba0fbdb5-1792502129",
+        "state": "JOB_STATE_FAILED",
+        "type": "JOB_TYPE_BATCH",
+        "create_time": "2026-10-20T13:15:30.153227+00:00",
+        "state_time": "2026-10-20T13:23:21.016935+00:00",
+        "labels": {
+          "pipeline": "gcs-to-bq"
+        }
+      },
+      "signal": false
+    },
+    {
+      "id": "gcp-2",
+      "source": "gcp",
+      "kind": "get_dataflow_errors",
+      "summary": "5 error messages for Dataflow job 2026-10-20_06_15_29-8208812364296540637; first: Traceback (most recent call last):\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\n  File \"apache_beam/runners/common.py\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\n  File \"apache_beam/runners/common.py\", line 1057, in",
+      "data": {
+        "truncated": true,
+        "json": "[{\"time\": \"2026-10-20T13:21:52.672000+00:00\", \"text\": \"Traceback (most recent call last):\\n  File \\\"apache_beam/runners/common.py\\\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\n  File \\\"apache_beam/runners/common.py\\\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\\n  File \\\"apache_beam/runners/common.py\\\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\\n  File \\\"apache_beam/runners/common.py\\\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\\\", line 843, in process\\n    job_reference = self.bq_wrapper.perform_load_job(\\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 1084, in perform_load_job\\n    return self._insert_load_job(\\n           ^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\\\", line 300, in wrapper\\n    return fun(*args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 584, in _insert_load_job\\n    return self._start_job(request, stream=source_stream).jobReference\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 616, in _start_job\\n    response = self.client.jobs.Insert(request, upload=upload)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/internal/clients/bigquery/bigquery_v2_client.py\\\", line 405, in Insert\\n    return self._RunMethod(\\n           ^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apitools/base/py/base_api.py\\\", line 731, in _RunMethod\\n    return self.ProcessHttpResponse(method_config, http_response, request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apitools/base/py/base_api.py\\\", line 737, in ProcessHttpResponse\\n    self.__ProcessHttpResponse(method_config, http_response, request))\\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apitools/base/py/base_api.py\\\", line 603, in __ProcessHttpResponse\\n    raise exceptions.HttpError.FromResponse(\\napitools.base.py.exceptions.HttpForbiddenError: HttpError accessing <https://bigquery.googleapis.com/bigquery/v2/projects/bigquerytarun/jobs?alt=json>: response: <{'vary': 'Origin, X-Origin, Referer', 'content-type': 'application/json; charset=UTF-8', 'date': 'Tue, 20 Oct 2026 13:21:52 GMT', 'server': 'ESF', 'x-xss-protection': '0', 'x-frame-options': 'SAMEORIGIN', 'x-content-type-options': 'nosniff', 'transfer-encoding': 'chunked', 'status': '403', 'content-length': '482', '-content-encoding': 'gzip'}>, content <{\\n  \\\"error\\\": {\\n    \\\"code\\\": 403,\\n    \\\"message\\\": \\\"Access Denied: Dataset bigqueryt\"}, {\"time\": \"2026-10-20T13:21:54.972000+00:00\", \"text\": \"Traceback (most recent call last):\\n  File \\\"apache_beam/runners/common.py\\\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\n  File \\\"apache_beam/runners/common.py\\\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\\n  File \\\"apache_beam/runners/common.py\\\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\\n  File \\\"apache_beam/runners/common.py\\\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\\\", line 843, in process\\n    job_reference = self.bq_wrapper.perform_load_job(\\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 1084, in perform_load_job\\n    return self._insert_load_job(\\n           ^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\\\", line 300, in wrapper\\n    return fun(*args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 584, in _insert_load_job\\n    return self._start_job(request, stream=source_stream).jobReference\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 616, in _start_job\\n    response = self.client.jobs.Insert(request, upload=upload)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/internal/clients/bigquery/bigquery_v2_client.py\\\", line 405, in Insert\\n    return self._RunMethod(\\n           ^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apitools/base/py/base_api.py\\\", line 731, in _RunMethod\\n    return self.ProcessHttpResponse(method_config, http_response, request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apitools/base/py/base_api.py\\\", line 737, in ProcessHttpResponse\\n    self.__ProcessHttpResponse(method_config, http_response, request))\\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apitools/base/py/base_api.py\\\", line 603, in __ProcessHttpResponse\\n    raise exceptions.HttpError.FromResponse(\\napitools.base.py.exceptions.HttpForbiddenError: HttpError accessing <https://bigquery.googleapis.com/bigquery/v2/projects/bigquerytarun/jobs?alt=json>: response: <{'vary': 'Origin, X-Origin, Referer', 'content-type': 'application/json; charset=UTF-8', 'date': 'Tue, 20 Oct 2026 13:21:54 GMT', 'server': 'ESF', 'x-xss-protection': '0', 'x-frame-options': 'SAMEORI"
+      },
+      "signal": true
+    },
+    {
+      "id": "gcp-3",
+      "source": "gcp",
+      "kind": "get_logs",
+      "summary": "30 log entries (dataflow_job 2026-10-20_06_15_29-8208812364296540637); errors: ['Workflow failed. Causes: S56:LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/Read+LoadToTargetTable/WriteToBigQuery/BigQueryBatchF', 'Error message from worker: Traceback (most recent call last):\\n  File \"apache_beam/runners/common.py\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\n  File \"apache_beam/runners/common.py\"']",
+      "data": {
+        "truncated": true,
+        "json": "[{\"time\": \"2026-10-20T13:21:59.258281+00:00\", \"severity\": \"ERROR\", \"message\": \"Workflow failed. Causes: S56:LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/Read+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/GroupByKey/GroupByWindow+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/ReshufflePerKey/FlatMap(restore_metadata_default_window)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ReshuffleBeforeLoadWithTempTables/RemoveRandomKeys+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/TriggerLoadJobsWithTempTables/ParDo(TriggerLoadJobs)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/Map(<lambda at bigquery_file_loads.py:1157>)+LoadToTargetTable/WriteToBigQuery/BigQueryBatchFileLoads/ParDo(UpdateDestinationSchema) failed., The job failed because a work item has failed 4 times. Look in previous log entries for the cause of each one of the 4 failures. For more information, see https://cloud.google.com/dataflow/docs/guides/common-errors#job-failed-four-times. The work item was attempted on these workers: \\n      Root cause: Traceback (most recent call last):\\n  File \\\"apache_beam/runners/common.py\\\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\n  File \\\"apache_beam/runners/common.py\\\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\\n  File \\\"apache_beam/runners/common.py\\\", line 1057, in apache_beam.runners.common.PerWindowInvoker._in\"}, {\"time\": \"2026-10-20T13:21:58.833066+00:00\", \"severity\": \"ERROR\", \"message\": \"Error message from worker: Traceback (most recent call last):\\n  File \\\"apache_beam/runners/common.py\\\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\n  File \\\"apache_beam/runners/common.py\\\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\\n  File \\\"apache_beam/runners/common.py\\\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\\n  File \\\"apache_beam/runners/common.py\\\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\\\", line 843, in process\\n    job_reference = self.bq_wrapper.perform_load_job(\\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 1084, in perform_load_job\\n    return self._insert_load_job(\\n           ^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\\\", line 300, in wrapper\\n    return fun(*args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 584, in _insert_load_job\\n    return self._start_job(request, stream=source_stream).jobReference\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 616, in _start_job\\n    response = self.client.jobs.Insert(request, upload=u\"}, {\"time\": \"2026-10-20T13:21:58.823617+00:00\", \"severity\": \"ERROR\", \"message\": \"{'message': 'Completed work item 9058448575616185412 UNSUCCESSFULLY: UNKNOWN: Traceback (most recent call last):\\\\n  File \\\"apache_beam/runners/common.py\\\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\\\n  File \\\"apache_beam/runners/common.py\\\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\\\\n  File \\\"apache_beam/runners/common.py\\\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\\\\n  File \\\"apache_beam/runners/common.py\\\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\\\", line 843, in process\\\\n    job_reference = self.bq_wrapper.perform_load_job(\\\\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 1084, in perform_load_job\\\\n    return self._insert_load_job(\\\\n           ^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/utils/retry.py\\\", line 300, in wrapper\\\\n    return fun(*args, **kwargs)\\\\n           ^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 584, in _insert_load_job\\\\n    return self._start_job(request, stream=source_stream).jobReference\\\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_tools.py\\\", line 616, in\"}, {\"time\": \"2026-10-20T13:21:58.821447+00:00\", \"severity\": \"WARNING\", \"message\": \"{'message': 'generic::cancelled: The worker was aborted', 'thread': '110', 'line': 'work_executor.cc:132'}\"}, {\"time\": \"2026-10-20T13:21:58.458066+00:00\", \"severity\": \"ERROR\", \"message\": \"{'message': 'Error processing instruction process_bundle-9058448575616185412-43. Original traceback is\\\\nTraceback (most recent call last):\\\\n  File \\\"apache_beam/runners/common.py\\\", line 1512, in apache_beam.runners.common.DoFnRunner.process\\\\n  File \\\"apache_beam/runners/common.py\\\", line 914, in apache_beam.runners.common.PerWindowInvoker.invoke_process\\\\n  File \\\"apache_beam/runners/common.py\\\", line 1057, in apache_beam.runners.common.PerWindowInvoker._invoke_process_per_window\\\\n  File \\\"apache_beam/runners/common.py\\\", line 1709, in apache_beam.runners.common._OutputHandler.handle_process_outputs\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/io/gcp/bigquery_file_loads.py\\\", line 843, in process\\\\n    job_reference = self.bq_wrapper.perform_load_job(\\\\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\\\n  File \\\"/usr/local/lib/python3.12/site-packages/apache_beam/"
+      },
+      "signal": true
+    },
+    {
+      "id": "gcp-4",
+      "source": "gcp",
+      "kind": "get_workflow_execution",
+      "summary": "Workflow execution 03d73fd2-89b1-4262-9133-7113042e64b8: FAILED; error: {\"dataflow_job_id\":\"2026-10-20_06_15_29-8208812364296540637\",\"dataflow_state\":\"JOB_STATE_FAILED\",\"job_id\":\"ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15\",\"message\":\"Ingestion failed for gs://bigquerytarun-dfa-",
+      "data": {
+        "state": "FAILED",
+        "start_time": "2026-10-20T13:15:26.400754+00:00",
+        "end_time": "2026-10-20T13:23:40.292025+00:00",
+        "error": "{\"dataflow_job_id\":\"2026-10-20_06_15_29-8208812364296540637\",\"dataflow_state\":\"JOB_STATE_FAILED\",\"job_id\":\"ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15\",\"message\":\"Ingestion failed for gs://bigquerytarun-dfa-landing/landing/customer_20261015.csv (job_id=ba0fbdb5-bf5c-4aed-8b16-23f4f258cd15)\"}",
+        "result": ""
+      },
+      "signal": true
+    },
+    {
+      "id": "gcp-5",
+      "source": "gcp",
+      "kind": "get_gcs_object",
+      "summary": "gs://bigquerytarun-dfa-landing/invalid/2026/10/20/customer_20261015.csv exists (1513 bytes, generation 1792502615927492)",
+      "data": {
+        "exists": true,
+        "size": 1513,
+        "generation": 1792502615927492,
+        "updated": "2026-10-20T13:23:35.933000+00:00",
+        "metadata": {}
+      },
+      "signal": false
+    },
+    {
+      "id": "gcp-6",
+      "source": "gcp",
+      "kind": "get_quota",
+      "summary": "quota IN_USE_ADDRESSES in europe-west2: usage 0.0 / limit 4.0",
+      "data": {
+        "metric": "IN_USE_ADDRESSES",
+        "limit": 4.0,
+        "usage": 0.0
+      },
+      "signal": false
+    },
+    {
+      "id": "gcp-7",
+      "source": "gcp",
+      "kind": "get_quota",
+      "summary": "quota CPUS in europe-west2: usage 0.0 / limit 32.0",
+      "data": {
+        "metric": "CPUS",
+        "limit": 32.0,
+        "usage": 0.0
+      },
+      "signal": false
+    },
+    {
+      "id": "gcp-8",
+      "source": "gcp",
+      "kind": "list_active_ingest_jobs",
+      "summary": "0 active ingestion jobs; 0 running > 60 min",
+      "data": {
+        "jobs": [],
+        "stuck": 0
+      },
+      "signal": false
+    }
+  ]
+}

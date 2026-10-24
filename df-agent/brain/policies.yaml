@@ -1,0 +1,57 @@
+# Deterministic action policy, enforced in code (incident_core/policy.py) BEFORE any LLM review.
+# Decision per action:
+#   AUTO_APPROVED  executable now, no human
+#   NEEDS_HUMAN    executable only via `make agent-approve`
+#   REPORT         informational / manual step for a human (never executed by the agent)
+#   REJECTED       violates policy (unknown type, bad params, destructive intent) - never executed
+version: 1
+
+# Signature confidence at or above which a signature overrides a contradicting LLM category.
+signature_override_confidence: 0.85
+
+action_types:
+  RETRY_FILE:            {executable: true}
+  PROPOSE_DATA_FIX:      {executable: false}
+  PROPOSE_CODE_CHANGE:   {executable: false}
+  PROPOSE_CONFIG_CHANGE: {executable: false}
+  ESCALATE:              {executable: false}
+  REPORT_ONLY:           {executable: false}
+
+# Applied to every action's parameters and its manual_command (what could actually be executed),
+# not to LLM-written prose.
+forbidden_patterns:
+  - '\bdelete\b'
+  - '\bdrop\b'
+  - '\btruncate\b'
+  - '\boverwrite\b'
+  - '\bdestroy\b'
+  - '\brm\b'
+  - '\bmv\b'
+  - '\bupdate\s+\S+\s+set\b'
+  - '--force'
+  - '\bpurge\b'
+
+# Parameter constraints for executable actions (checked against values from config).
+param_rules:
+  RETRY_FILE:
+    bucket_must_equal: landing_bucket
+    source_prefix: "invalid/"
+    destination_prefix: "landing/"
+
+# All conditions must hold. Facts are computed by the domain pack (domains/*/facts).
+auto_approve:
+  RETRY_FILE:
+    - {fact: event_status, equals: FAILED}
+    - {fact: category, equals: TRANSIENT_INFRA}
+    - {fact: confidence, gte: 0.7}
+    - {fact: retries_24h, lt: 2}
+    - {fact: source_exists, equals: true}
+    - {fact: destination_exists, equals: false}
+    - {fact: stuck_ingest_jobs, equals: 0}
+
+# Executable actions that fail auto_approve can still be approved by a human only if these hold.
+human_approvable:
+  RETRY_FILE:
+    - {fact: source_exists, equals: true}
+    - {fact: destination_exists, equals: false}
+    - {fact: retries_24h, lt: 5}

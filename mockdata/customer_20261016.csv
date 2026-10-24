@@ -1,0 +1,12 @@
+customer_id,first_name,last_name,email,phone,country,signup_date,is_active
+31,Kiran,Wilson,kiran.wilson31@example.com,+44 7700 900031,AU,2026-07-31,true
+32,Liam,Patel,not-an-email,,AU,2025-08-07,false
+33,Maya,Jones,maya.jones33@example.com,+44 7700 900033,IN,2025-03-12,true
+,Noah,Singh,noah.singh34@example.com,+44 7700 900034,IN,2025-06-11,false
+35,Olivia,Evans,olivia.evans35@example.com,+44 7700 900035,DE,2025-11-06,true
+35,Priya,Evans,priya.evans36@example.com,,IN,2025-04-17,true
+37,Quinn,Brown,quinn.brown37@example.com,+44 7700 900037,ZZ,2025-04-20,true
+38,Ravi,Brown,ravi.brown38@example.com,+44 7700 900038,IN,31/02/2026,false
+39,Sara,Khan,sara.khan39@example.com,+44 7700 900039,DE,2025-09-28,maybe
+40,Tom,Brown,tom.brown40@example.com,,FR,2025-02-22,true
+T|10|20261016

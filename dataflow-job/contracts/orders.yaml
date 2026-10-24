@@ -1,0 +1,14 @@
+name: orders
+version: "1.0"
+file_prefix: orders
+file_name_pattern: '^orders_(?P<file_date>\d{8})\.csv$'
+delimiter: ","
+target_table: orders
+load_mode: append
+columns:
+  - {name: order_id, type: INTEGER, nullable: false}
+  - {name: customer_id, type: INTEGER}
+  - {name: order_date, type: DATE, format: "%d/%m/%Y"}
+  - {name: amount, type: NUMERIC}
+  - {name: currency, type: STRING}
+  - {name: status, type: STRING}

@@ -1,0 +1,4 @@
+customer_id,first_name,last_name,email,phone,country,signup_date,is_active
+1,Ana,Patel,ana.patel1@example.com,+44 7700 900001,UK,2025-10-09,true
+2,Ben,Khan,ben.khan2@example.com,+44 7700 900002,US,2025-04-15,true
+20,Tom,Wilson,tom.wilson20@example.com,,CA,2025-10-04,true

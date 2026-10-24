@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "a74e8982-2d89-407a-b478-7a0d0b2a1201",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/tarunnagula/Documents/workspace/dataflow-agent/.archify/architecture-df-agent-20261024-195433/candidate.json",
+  "output": "/Users/tarunnagula/Documents/workspace/dataflow-agent/.archify/architecture-df-agent-20261024-195433/df-agent.html",
+  "specification": {
+    "sha256": "2b7e7fc3a09edddc2cdd56a7cfd79c36efc3cd9c3b1ee7a61e71c0cf571866a6",
+    "bytes": 7138
+  },
+  "artifact": {
+    "sha256": "3459b828fed056b9877e1362cb37323ba3d0b33bc6e70339d5b36d8044895bd1",
+    "bytes": 796640
+  }
+}

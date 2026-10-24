@@ -1,0 +1,11 @@
+[
+  {"name": "order_id", "type": "INTEGER", "mode": "REQUIRED"},
+  {"name": "customer_id", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "order_date", "type": "DATE", "mode": "NULLABLE"},
+  {"name": "amount", "type": "NUMERIC", "mode": "NULLABLE"},
+  {"name": "currency", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "status", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "_job_id", "type": "STRING", "mode": "NULLABLE", "description": "file_audit.job_metadata.job_id that loaded this row."},
+  {"name": "_source_file", "type": "STRING", "mode": "NULLABLE", "description": "gs:// URI of the source file."},
+  {"name": "_loaded_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Load timestamp."}
+]

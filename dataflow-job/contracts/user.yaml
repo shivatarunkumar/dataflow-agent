@@ -1,0 +1,15 @@
+name: user
+version: "1.0"
+file_prefix: user
+file_name_pattern: '^user_(?P<file_date>\d{8})\.csv$'
+delimiter: ","
+target_table: user
+load_mode: append
+columns:
+  - {name: user_id, type: INTEGER, nullable: false}
+  - {name: username, type: STRING}
+  - {name: email, type: STRING}
+  - {name: customer_id, type: INTEGER}
+  - {name: role, type: STRING}
+  - {name: created_at, type: TIMESTAMP}
+  - {name: last_login_at, type: TIMESTAMP}

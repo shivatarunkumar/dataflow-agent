@@ -1,0 +1,18 @@
+[
+  {"name": "incident_id", "type": "STRING", "mode": "REQUIRED", "description": "Incident id (= job_metadata.job_id for ingestion incidents)."},
+  {"name": "subject", "type": "STRING", "mode": "NULLABLE", "description": "What the incident is about (file name); retries are counted per subject."},
+  {"name": "event_status", "type": "STRING", "mode": "NULLABLE", "description": "Status in the triggering event (FAILED / REJECTED)."},
+  {"name": "status", "type": "STRING", "mode": "NULLABLE", "description": "AUTO_RESOLVED, AWAITING_HUMAN, APPROVED_BY_HUMAN, DUPLICATE or ERROR."},
+  {"name": "severity", "type": "STRING", "mode": "NULLABLE", "description": "SEV2 / SEV3 (raised one level on repeated failures)."},
+  {"name": "category", "type": "STRING", "mode": "NULLABLE", "description": "Root-cause category: TRANSIENT_INFRA, DATA_QUALITY, CODE_BUG, CONFIG, UNKNOWN."},
+  {"name": "confidence", "type": "FLOAT", "mode": "NULLABLE", "description": "Confidence in the category (0..1)."},
+  {"name": "root_cause", "type": "STRING", "mode": "NULLABLE", "description": "Root-cause summary."},
+  {"name": "actions", "type": "JSON", "mode": "NULLABLE", "description": "Planned actions."},
+  {"name": "decisions", "type": "JSON", "mode": "NULLABLE", "description": "Policy/reviewer decision per action."},
+  {"name": "executed_actions", "type": "JSON", "mode": "NULLABLE", "description": "Actions executed in this record (by the agent or an approving human)."},
+  {"name": "executed_retry_count", "type": "INTEGER", "mode": "NULLABLE", "description": "RETRY_FILE actions completed in this record."},
+  {"name": "report_path", "type": "STRING", "mode": "NULLABLE", "description": "Local path of the PDF report."},
+  {"name": "llm_models", "type": "JSON", "mode": "NULLABLE", "description": "provider:model used per agent role."},
+  {"name": "actor", "type": "STRING", "mode": "NULLABLE", "description": "df-agent or the approving user."},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When this record was written (append-only)."}
+]

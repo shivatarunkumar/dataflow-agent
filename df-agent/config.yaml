@@ -1,0 +1,49 @@
+# df-agent configuration. ${VAR} / ${VAR:-default} are expanded from the environment
+# (the Makefile exports DFA_* from terraform outputs).
+
+domain: dataflow_ingest
+brain_dir: brain
+actions_dir: actions
+state_dir: .state                     # LangGraph SQLite checkpoints + local incident log
+
+llm:
+  # provider: ollama | anthropic | none   ("none" = rules-only mode, no LLM calls)
+  default: {provider: ollama, model: "llama3.2", base_url: "${OLLAMA_BASE_URL:-http://localhost:11434}", temperature: 0}
+  roles: {}
+  # Once ANTHROPIC_API_KEY is set, e.g.:
+  # roles:
+  #   investigator:   {provider: anthropic, model: "claude-sonnet-5-5"}
+  #   action_planner: {provider: anthropic, model: "claude-sonnet-5-5"}
+  #   code_reviewer:  {provider: anthropic, model: "claude-opus-5-5"}
+
+logging:
+  level: INFO                         # DEBUG adds library logs
+  save_llm_io: true                   # save every prompt/response to actions/<id>/llm/ for review
+
+gatherers:
+  llm_tool_selection: on_request      # on_request | always | never (default lookups always run)
+  llm_summary: false                  # small models add noise + time; the log analyst digest replaces this
+
+planner:
+  llm_narrative: true                 # only for actions without a deterministic signature remediation
+
+features:
+  generate_patches: false             # full unified diffs only with a strong model (df-agent.md §16)
+
+limits:
+  gatherer_extra_tool_calls: 4        # LLM-chosen lookups on top of the default evidence set
+  evidence_rounds: 2                  # investigator -> gatherers loops
+  evidence_item_max_chars: 6000
+  prompt_evidence_max_chars: 12000
+
+gcp:
+  project: "${DFA_PROJECT_ID:-bigquerytarun}"
+  region: "${DFA_REGION:-europe-west2}"
+  landing_bucket: "${DFA_LANDING_BUCKET}"
+  dataflow_bucket: "${DFA_DATAFLOW_BUCKET}"
+  dataflow_sa: "${DFA_DATAFLOW_SA}"                # fallback if the job's worker SA can't be read
+  error_subscription: "${DFA_ERROR_SUBSCRIPTION}"
+  audit_dataset: "${DFA_AUDIT_DATASET:-file_audit}"
+  workflow: "${DFA_WORKFLOW_NAME:-dfa-ingest-file}"
+  incidents_table: "agent_incidents"
+  impersonate_service_account: "${DFA_AGENT_SA}"   # empty = use your own ADC credentials

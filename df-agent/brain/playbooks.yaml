@@ -1,0 +1,40 @@
+# Root-cause category -> actions the planner proposes. Parameters are filled by the domain pack (code),
+# descriptions by the LLM (falls back to `default_description`).
+playbooks:
+  TRANSIENT_INFRA:
+    - type: RETRY_FILE
+      default_description: >
+        Transient platform failure. Re-run the file by copying it from invalid/ back to landing/;
+        the pipeline will process it as a new job.
+    - type: REPORT_ONLY
+      default_description: >
+        If retries keep failing with the same quota error, raise the regional quota or lower
+        max_concurrent_jobs (see runbook QUOTA_EXCEEDED).
+
+  DATA_QUALITY:
+    - type: PROPOSE_DATA_FIX
+      default_description: >
+        The file breaks the data contract. The data owner must correct the file (see failed checks)
+        and re-upload it to landing/. Do not retry the same file.
+
+  CODE_BUG:
+    - type: PROPOSE_CODE_CHANGE
+      default_description: >
+        The pipeline code failed. Inspect the error, fix the code in dataflow-job/, rebuild the image
+        (make docker) and re-upload the file.
+    - type: ESCALATE
+      default_description: Confirm the root cause with an engineer before changing code.
+
+  CONFIG:
+    - type: PROPOSE_CONFIG_CHANGE
+      default_description: >
+        Infrastructure or configuration problem (permissions, missing template, quota). Fix the config,
+        then retry the file.
+    # Not auto-approved (policy auto-retries only TRANSIENT_INFRA): a human approves it after the fix.
+    - type: RETRY_FILE
+      default_description: >
+        After the configuration fix is applied, re-run the file (the original is kept in invalid/).
+
+  UNKNOWN:
+    - type: ESCALATE
+      default_description: Root cause unclear from the evidence. A human must investigate.

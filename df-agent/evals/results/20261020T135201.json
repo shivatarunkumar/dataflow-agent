@@ -1,0 +1,27 @@
+{
+  "ran_at": "2026-10-20T13:52:01.131393+00:00",
+  "accuracy": 1.0,
+  "cases": [
+    {
+      "case": "ba0fbdb5",
+      "expected": "CONFIG",
+      "got": "CONFIG",
+      "confidence": 0.92,
+      "method": "signature+llm",
+      "ok": true,
+      "primary_error": "permission",
+      "note": "dataflow SA lost bigquery.dataEditor"
+    }
+  ],
+  "confusion": {
+    "CONFIG->CONFIG": 1
+  },
+  "models": {
+    "investigator": {
+      "provider": "ollama",
+      "model": "llama3.2",
+      "base_url": "http://localhost:11434",
+      "temperature": 0
+    }
+  }
+}

@@ -1,0 +1,776 @@
+# Per-file ingestion orchestration (replaces the Airflow DAGs).
+#
+# Trigger: Eventarc (Pub/Sub transport) on the GCS OBJECT_FINALIZE notification topic.
+# Flow:    parse event -> register job (job_metadata IN_PROGRESS / DUPLICATE_SKIPPED)
+#          -> launch Dataflow flex template -> poll until terminal state
+#          -> finalize (FAILED if Dataflow did not finish, move file to archive/ or invalid/).
+#
+# Config comes from user env vars set by infra/workflows.tf (DFA_*).
+# All SQL uses named STRING parameters; {job_metadata} is replaced with the table id.
+
+main:
+  params: [event]
+  steps:
+    - init:
+        assign:
+          - project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - region: ${sys.get_env("DFA_REGION")}
+          - execution_id: ${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
+          - message: ${event.data.message}
+          - attributes: {}
+          - dataflow_job_id: ""
+          - dataflow_state: "NOT_STARTED"
+          - dataflow_error: ""
+          - lock: {}
+    # Expressions can't contain map literals, so default to {} via YAML and override if present.
+    - read_attributes:
+        switch:
+          - condition: ${"attributes" in message}
+            assign:
+              - attributes: ${message.attributes}
+
+    - filter_event_type:
+        switch:
+          - condition: ${default(map.get(attributes, "eventType"), "") != "OBJECT_FINALIZE"}
+            return:
+              skipped: true
+              reason: ${"ignored event type " + default(map.get(attributes, "eventType"), "none")}
+
+    - parse_object:
+        assign:
+          - obj: ${json.decode(base64.decode(message.data))}
+          - bucket: ${obj.bucket}
+          - name: ${obj.name}
+          - generation: ${string(obj.generation)}
+          - file_path: ${"gs://" + bucket + "/" + name}
+          - name_parts: ${text.split(name, "/")}
+          - file_name: ${name_parts[len(name_parts) - 1]}
+
+    - filter_object:
+        switch:
+          - condition: ${not(text.match_regex(name, "^landing/.*[^/]$"))}
+            return:
+              skipped: true
+              reason: ${"object outside landing/ or folder marker - " + name}
+
+    # Pub/Sub is at-least-once: the same message can start several executions.
+    # Only the first one to claim this object generation continues; the rest exit without writing.
+    - claim:
+        call: claim_delivery
+        args:
+          bucket: ${bucket}
+          name: ${name}
+          generation: ${generation}
+          execution_id: ${execution_id}
+        result: claimed
+    - stop_if_already_claimed:
+        switch:
+          - condition: ${not(claimed)}
+            return:
+              skipped: true
+              reason: ${"duplicate delivery - " + file_path + " generation " + generation + " is already being processed"}
+
+    - register:
+        call: register_job
+        args:
+          event: ${event}
+          obj: ${obj}
+          file_name: ${file_name}
+          file_path: ${file_path}
+          generation: ${generation}
+          execution_id: ${execution_id}
+        result: job
+
+    - stop_if_duplicate:
+        switch:
+          - condition: ${job.duplicate}
+            return: ${job}
+
+    - run_dataflow:
+        try:
+          steps:
+            # Only max_concurrent_jobs Dataflow jobs at once (IP / CPU quota); others wait here.
+            - wait_for_slot:
+                call: acquire_slot
+                args:
+                  job_id: ${job.job_id}
+                result: lock
+            - launch:
+                call: http.post
+                args:
+                  url: ${"https://dataflow.googleapis.com/v1b3/projects/" + project + "/locations/" + region + "/flexTemplates:launch"}
+                  auth:
+                    type: OAuth2
+                  body:
+                    launchParameter:
+                      jobName: ${"ingest-" + text.substring(job.job_id, 0, 8) + "-" + string(int(sys.now()))}
+                      containerSpecGcsPath: ${sys.get_env("DFA_TEMPLATE_PATH")}
+                      parameters:
+                        input_file: ${file_path}
+                        audit_job_id: ${job.job_id}
+                        file_generation: ${generation}
+                        pubsub_message_id: ${default(map.get(message, "messageId"), "")}
+                        trigger_type: "PUBSUB"
+                        audit_dataset: ${sys.get_env("DFA_AUDIT_DATASET")}
+                        target_dataset: ${sys.get_env("DFA_TARGET_DATASET")}
+                      environment:
+                        serviceAccountEmail: ${sys.get_env("DFA_DATAFLOW_SA")}
+                        tempLocation: ${"gs://" + sys.get_env("DFA_DATAFLOW_BUCKET") + "/temp"}
+                        stagingLocation: ${"gs://" + sys.get_env("DFA_DATAFLOW_BUCKET") + "/staging"}
+                        maxWorkers: 1
+                        additionalUserLabels:
+                          pipeline: "gcs-to-bq"
+                result: launch_response
+            - remember_job:
+                assign:
+                  - dataflow_job_id: ${launch_response.body.job.id}
+            - wait:
+                call: wait_for_dataflow
+                args:
+                  project: ${project}
+                  region: ${region}
+                  dataflow_job_id: ${dataflow_job_id}
+                result: dataflow_state
+        except:
+          as: e
+          steps:
+            - record_error:
+                assign:
+                  - dataflow_state: "LAUNCH_OR_POLL_FAILED"
+                  - dataflow_error: ${text.substring(json.encode_to_string(e), 0, 900)}
+
+    # Always free the slot (success, failure or launch error) so the next queued file can start.
+    - release:
+        switch:
+          - condition: ${"name" in lock}
+            steps:
+              - release_lock:
+                  call: release_slot
+                  args:
+                    lock: ${lock}
+
+    - finalize:
+        call: finalize_job
+        args:
+          job: ${job}
+          bucket: ${bucket}
+          name: ${name}
+          generation: ${generation}
+          dataflow_job_id: ${dataflow_job_id}
+          dataflow_state: ${dataflow_state}
+          dataflow_error: ${dataflow_error}
+        result: outcome
+
+    - done:
+        return: ${outcome}
+
+
+# Atomically claims one object generation (create-only GCS object). Returns true for the first
+# caller and false (HTTP 412) for any duplicate delivery. Claims expire via the bucket lifecycle.
+claim_delivery:
+  params: [bucket, name, generation, execution_id]
+  steps:
+    - init:
+        assign:
+          - claim_name: ${"claims/" + bucket + "/" + name + "@" + generation}
+          - claimed: false
+    - create_claim:
+        try:
+          steps:
+            - create:
+                call: http.post
+                args:
+                  url: ${"https://storage.googleapis.com/upload/storage/v1/b/" + sys.get_env("DFA_DATAFLOW_BUCKET") + "/o?uploadType=media&ifGenerationMatch=0&name=" + text.url_encode(claim_name)}
+                  auth:
+                    type: OAuth2
+                  headers:
+                    Content-Type: "text/plain"
+                  body: ${execution_id}
+            - mark_claimed:
+                assign:
+                  - claimed: true
+        except:
+          as: e
+          steps:
+            - reraise_unless_claimed:
+                switch:
+                  - condition: ${default(map.get(e, "code"), 0) != 412}
+                    raise: ${e}
+    - done:
+        return: ${claimed}
+
+
+# Inserts the job_metadata row. Returns {job_id, duplicate, ...}.
+register_job:
+  params: [event, obj, file_name, file_path, generation, execution_id]
+  steps:
+    - init:
+        assign:
+          - job_id: ${uuid.generate()}
+          - ext_parts: ${text.split(file_name, ".")}
+          - file_format: ""
+    - set_format:
+        switch:
+          - condition: ${len(ext_parts) > 1}
+            assign:
+              - file_format: ${text.to_lower(ext_parts[len(ext_parts) - 1])}
+
+    - previous_attempts:
+        call: bq_query
+        args:
+          sql: |
+            SELECT COUNT(*) AS attempts, COUNTIF(status = 'SUCCESS') AS successes
+            FROM {job_metadata}
+            WHERE file_path = @file_path AND file_generation = @generation
+              AND status != 'DUPLICATE_SKIPPED'
+          params:
+            file_path: ${file_path}
+            generation: ${generation}
+        result: prior
+
+    - decide:
+        assign:
+          - attempt: ${int(prior.rows[0].f[0].v) + 1}
+          - duplicate: ${int(prior.rows[0].f[1].v) > 0}
+          - status: "IN_PROGRESS"
+          - reason: "Registered by workflow"
+    - mark_duplicate:
+        switch:
+          - condition: ${duplicate}
+            assign:
+              - status: "DUPLICATE_SKIPPED"
+              - reason: "Generation already loaded successfully"
+
+    - insert_job:
+        call: bq_query
+        args:
+          sql: |
+            INSERT INTO {job_metadata} (
+              job_id, job_name, trigger_type, pubsub_message_id, pubsub_subscription,
+              attempt_number, is_retried, status, status_reason, start_time,
+              source_bucket, file_name, file_path, file_generation, file_size_bytes, file_format,
+              file_created_at, gcp_project, gcp_region, service_name, service_revision,
+              created_at, updated_at
+            ) VALUES (
+              @job_id, @job_name, 'PUBSUB', NULLIF(@message_id, ''), NULLIF(@subscription, ''),
+              CAST(@attempt AS INT64), CAST(@attempt AS INT64) > 1, @status, @reason, CURRENT_TIMESTAMP(),
+              @bucket, @file_name, @file_path, @generation, SAFE_CAST(NULLIF(@size, '') AS INT64),
+              NULLIF(@file_format, ''), SAFE_CAST(NULLIF(@time_created, '') AS TIMESTAMP),
+              @project, @region, 'workflows', @execution_id,
+              CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
+            )
+          params:
+            job_id: ${job_id}
+            job_name: ${text.split(file_name, "_")[0] + "_load"}
+            message_id: ${default(map.get(event.data.message, "messageId"), "")}
+            subscription: ${default(map.get(event.data, "subscription"), "")}
+            attempt: ${string(attempt)}
+            status: ${status}
+            reason: ${reason}
+            bucket: ${obj.bucket}
+            file_name: ${file_name}
+            file_path: ${file_path}
+            generation: ${generation}
+            size: ${string(default(map.get(obj, "size"), ""))}
+            file_format: ${file_format}
+            time_created: ${default(map.get(obj, "timeCreated"), "")}
+            project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+            region: ${sys.get_env("DFA_REGION")}
+            execution_id: ${execution_id}
+
+    - done:
+        return:
+          job_id: ${job_id}
+          duplicate: ${duplicate}
+          status: ${status}
+          file_path: ${file_path}
+          attempt: ${attempt}
+
+
+# Semaphore on GCS: slot n is the object locks/dataflow-slot-<n> in the dataflow bucket.
+# Creating it with ifGenerationMatch=0 succeeds for exactly one caller (others get 412).
+# Waits (60s) until a slot is free; locks older than stale_after_seconds are removed as abandoned.
+acquire_slot:
+  params: [job_id]
+  steps:
+    - init:
+        assign:
+          - bucket: ${sys.get_env("DFA_DATAFLOW_BUCKET")}
+          - max_slots: ${int(sys.get_env("DFA_MAX_CONCURRENT_JOBS"))}
+          - stale_after_seconds: 7200
+          - storage_api: "https://storage.googleapis.com/storage/v1/b/"
+          - slot: 0
+          - got: false
+          - lock_generation: ""
+    - pick_slot:
+        assign:
+          - lock_name: ${"locks/dataflow-slot-" + string(slot)}
+    - try_create_lock:
+        try:
+          steps:
+            - create:
+                call: http.post
+                args:
+                  url: ${"https://storage.googleapis.com/upload/storage/v1/b/" + bucket + "/o?uploadType=media&ifGenerationMatch=0&name=" + text.url_encode(lock_name)}
+                  auth:
+                    type: OAuth2
+                  headers:
+                    Content-Type: "text/plain"
+                  body: ${job_id}
+                result: created
+            - mark_acquired:
+                assign:
+                  - got: true
+                  - lock_generation: ${created.body.generation}
+        except:
+          as: e
+          steps:
+            # 412 = slot already held; anything else is a real error.
+            - reraise_unless_taken:
+                switch:
+                  - condition: ${default(map.get(e, "code"), 0) != 412}
+                    raise: ${e}
+    - return_if_acquired:
+        switch:
+          - condition: ${got}
+            return:
+              name: ${lock_name}
+              generation: ${lock_generation}
+    - clear_if_stale:
+        try:
+          steps:
+            - get_lock:
+                call: http.get
+                args:
+                  url: ${storage_api + bucket + "/o/" + text.url_encode(lock_name)}
+                  auth:
+                    type: OAuth2
+                result: existing
+            - delete_if_stale:
+                switch:
+                  - condition: ${sys.now() - time.parse(existing.body.timeCreated) > stale_after_seconds}
+                    steps:
+                      - delete_stale_lock:
+                          call: http.delete
+                          args:
+                            url: ${storage_api + bucket + "/o/" + text.url_encode(lock_name) + "?ifGenerationMatch=" + existing.body.generation}
+                            auth:
+                              type: OAuth2
+        except:
+          as: e
+          steps:
+            # Lock released or replaced meanwhile - just try again.
+            - ignore:
+                assign:
+                  - got: false
+    - next_slot:
+        switch:
+          - condition: ${slot + 1 < max_slots}
+            steps:
+              - bump_slot:
+                  assign:
+                    - slot: ${slot + 1}
+                  next: pick_slot
+    - all_busy_wait:
+        call: sys.sleep
+        args:
+          seconds: 60
+    - restart_from_first_slot:
+        assign:
+          - slot: 0
+        next: pick_slot
+
+
+release_slot:
+  params: [lock]
+  steps:
+    - delete_lock:
+        try:
+          call: http.delete
+          args:
+            url: ${"https://storage.googleapis.com/storage/v1/b/" + sys.get_env("DFA_DATAFLOW_BUCKET") + "/o/" + text.url_encode(lock.name) + "?ifGenerationMatch=" + lock.generation}
+            auth:
+              type: OAuth2
+        except:
+          as: e
+          steps:
+            # 404/412: already removed (e.g. cleared as stale) - nothing to release.
+            - ignore_if_gone:
+                switch:
+                  - condition: ${not(default(map.get(e, "code"), 0) in [404, 412])}
+                    raise: ${e}
+    - done:
+        return: ${lock.name}
+
+
+# Polls the Dataflow job every 60s until it reaches a terminal state (max ~60 min).
+wait_for_dataflow:
+  params: [project, region, dataflow_job_id]
+  steps:
+    - init:
+        assign:
+          - polls: 0
+          - max_polls: 60
+          - terminal: ["JOB_STATE_DONE", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_DRAINED", "JOB_STATE_UPDATED"]
+    - get_job:
+        try:
+          call: http.get
+          args:
+            url: ${"https://dataflow.googleapis.com/v1b3/projects/" + project + "/locations/" + region + "/jobs/" + dataflow_job_id}
+            auth:
+              type: OAuth2
+          result: job_response
+        retry: ${http.default_retry}
+    - check_state:
+        assign:
+          - state: ${default(map.get(job_response.body, "currentState"), "JOB_STATE_UNKNOWN")}
+          - polls: ${polls + 1}
+    - is_finished:
+        switch:
+          - condition: ${state in terminal}
+            return: ${state}
+          - condition: ${polls >= max_polls}
+            return: "POLL_TIMEOUT"
+    - sleep:
+        call: sys.sleep
+        args:
+          seconds: 60
+        next: get_job
+
+
+# Reconciles workflow and Dataflow outcomes, moves the file, returns the final status.
+finalize_job:
+  params: [job, bucket, name, generation, dataflow_job_id, dataflow_state, dataflow_error]
+  steps:
+    - read_status:
+        call: bq_query
+        args:
+          sql: "SELECT status FROM {job_metadata} WHERE job_id = @job_id"
+          params:
+            job_id: ${job.job_id}
+        result: current
+    - init:
+        assign:
+          - rows: ${default(map.get(current, "rows"), [])}
+          - status: "IN_PROGRESS"
+    - read_row:
+        switch:
+          - condition: ${len(rows) > 0}
+            assign:
+              - status: ${rows[0].f[0].v}
+
+    - mark_failed_if_needed:
+        switch:
+          - condition: ${dataflow_state != "JOB_STATE_DONE" or status == "IN_PROGRESS"}
+            steps:
+              - update_failed:
+                  call: bq_query
+                  args:
+                    sql: |
+                      UPDATE {job_metadata}
+                      SET status = 'FAILED', status_reason = @reason, error_code = 'DATAFLOW_JOB_FAILED',
+                          error_message = @reason, end_time = CURRENT_TIMESTAMP(),
+                          duration_seconds = TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), start_time, MILLISECOND) / 1000.0,
+                          updated_at = CURRENT_TIMESTAMP()
+                      WHERE job_id = @job_id
+                    params:
+                      job_id: ${job.job_id}
+                      reason: ${"Dataflow job " + dataflow_job_id + " ended in " + dataflow_state + ". " + dataflow_error}
+              - set_failed:
+                  assign:
+                    - status: "FAILED"
+
+    - build_destination:
+        assign:
+          - prefix: ${if(status == "SUCCESS", "archive/", "invalid/")}
+          - day: ${text.replace_all(text.substring(time.format(sys.now()), 0, 10), "-", "/")}
+          - relative: ${text.substring(name, len("landing/"), len(name))}
+          - destination: ${prefix + day + "/" + relative}
+          - storage_api: "https://storage.googleapis.com/storage/v1/b/"
+
+    - move_file:
+        try:
+          steps:
+            - copy:
+                call: http.post
+                args:
+                  url: ${storage_api + bucket + "/o/" + text.url_encode(name) + "/copyTo/b/" + bucket + "/o/" + text.url_encode(destination)}
+                  auth:
+                    type: OAuth2
+            - delete:
+                call: http.delete
+                args:
+                  url: ${storage_api + bucket + "/o/" + text.url_encode(name) + "?ifGenerationMatch=" + generation}
+                  auth:
+                    type: OAuth2
+            - record_final_path:
+                call: bq_query
+                args:
+                  sql: |
+                    UPDATE {job_metadata}
+                    SET final_file_path = @final_path, updated_at = CURRENT_TIMESTAMP()
+                    WHERE job_id = @job_id
+                  params:
+                    job_id: ${job.job_id}
+                    final_path: ${"gs://" + bucket + "/" + destination}
+        except:
+          as: e
+          steps:
+            # 404: the object was already moved (e.g. a redelivered event) - nothing to do.
+            - reraise_unless_missing:
+                switch:
+                  - condition: ${default(map.get(e, "code"), 0) != 404}
+                    raise: ${e}
+
+    # Error event for downstream investigation; publishing problems never change the job outcome.
+    - notify_on_failure:
+        switch:
+          - condition: ${status == "FAILED" or status == "REJECTED"}
+            steps:
+              - publish_error:
+                  try:
+                    call: publish_failure
+                    args:
+                      job: ${job}
+                      status: ${status}
+                      bucket: ${bucket}
+                      name: ${name}
+                      generation: ${generation}
+                      final_file_path: ${"gs://" + bucket + "/" + destination}
+                      dataflow_job_id: ${dataflow_job_id}
+                      dataflow_state: ${dataflow_state}
+                      dataflow_error: ${dataflow_error}
+                  except:
+                    as: e
+                    steps:
+                      - log_publish_error:
+                          call: sys.log
+                          args:
+                            severity: "ERROR"
+                            text: ${"Could not publish error event for job " + job.job_id + " - " + json.encode_to_string(e)}
+
+    - check_outcome:
+        switch:
+          - condition: ${status == "FAILED"}
+            raise:
+              message: ${"Ingestion failed for gs://" + bucket + "/" + name + " (job_id=" + job.job_id + ")"}
+              job_id: ${job.job_id}
+              dataflow_job_id: ${dataflow_job_id}
+              dataflow_state: ${dataflow_state}
+
+    - done:
+        return:
+          job_id: ${job.job_id}
+          status: ${status}
+          dataflow_job_id: ${dataflow_job_id}
+          dataflow_state: ${dataflow_state}
+          final_file_path: ${"gs://" + bucket + "/" + destination}
+
+
+# Publishes a self-contained error event (job, file, failed checks, Dataflow errors, links) to
+# DFA_ERROR_TOPIC so an automated investigator can triage without extra lookups. See project.md 7a.
+publish_failure:
+  params: [job, status, bucket, name, generation, final_file_path, dataflow_job_id, dataflow_state, dataflow_error]
+  steps:
+    - init:
+        assign:
+          - project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - region: ${sys.get_env("DFA_REGION")}
+          - dataset: ${sys.get_env("DFA_AUDIT_DATASET")}
+          - workflow_id: ${sys.get_env("GOOGLE_CLOUD_WORKFLOW_ID")}
+          - execution_id: ${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
+          - failed_checks: []
+          - dataflow_errors: []
+          - job_messages: []
+
+    - read_job:
+        call: bq_query
+        args:
+          sql: |
+            SELECT status, status_reason, error_code, error_message, job_name, contract_name, target_table,
+                   CAST(rows_in_file AS STRING), CAST(rows_loaded AS STRING), validation_status, recon_status,
+                   CAST(start_time AS STRING), CAST(end_time AS STRING), CAST(attempt_number AS STRING)
+            FROM {job_metadata}
+            WHERE job_id = @job_id
+          params:
+            job_id: ${job.job_id}
+        result: job_result
+    - job_columns:
+        assign:
+          - j: ${job_result.rows[0].f}
+
+    - read_failed_checks:
+        call: bq_query
+        args:
+          sql: |
+            SELECT check_name, check_type, summary, ARRAY_TO_STRING(failed_checks, ','),
+                   SUBSTR(TO_JSON_STRING(details), 1, 2000)
+            FROM {validation_metadata}
+            WHERE job_id = @job_id AND validation_result = 'FAIL'
+            ORDER BY check_name
+          params:
+            job_id: ${job.job_id}
+        result: checks_result
+    - collect_failed_checks:
+        for:
+          value: row
+          in: ${default(map.get(checks_result, "rows"), [])}
+          steps:
+            - add_check:
+                assign:
+                  - check:
+                      check_name: ${row.f[0].v}
+                      check_type: ${row.f[1].v}
+                      summary: ${row.f[2].v}
+                      failed_rules: ${row.f[3].v}
+                      details_json: ${row.f[4].v}
+                  - failed_checks: ${list.concat(failed_checks, check)}
+
+    - read_dataflow_errors:
+        switch:
+          - condition: ${dataflow_job_id != ""}
+            steps:
+              - get_job_messages:
+                  try:
+                    steps:
+                      - fetch:
+                          call: http.get
+                          args:
+                            url: ${"https://dataflow.googleapis.com/v1b3/projects/" + project + "/locations/" + region + "/jobs/" + dataflow_job_id + "/messages?minimumImportance=JOB_MESSAGE_ERROR&pageSize=5"}
+                            auth:
+                              type: OAuth2
+                          result: messages_response
+                      - keep_messages:
+                          assign:
+                            - job_messages: ${default(map.get(messages_response.body, "jobMessages"), [])}
+                  except:
+                    as: e
+                    steps:
+                      - no_messages:
+                          assign:
+                            - job_messages: []
+              - collect_dataflow_errors:
+                  for:
+                    value: message
+                    in: ${job_messages}
+                    steps:
+                      # Keep the TAIL: a traceback's real exception is at the end.
+                      - add_error:
+                          assign:
+                            - message_text: ${default(map.get(message, "messageText"), "")}
+                            - dataflow_error_entry:
+                                time: ${default(map.get(message, "time"), "")}
+                                text: ${text.substring(message_text, math.max(0, len(message_text) - 2500), len(message_text))}
+                            - dataflow_errors: ${list.concat(dataflow_errors, dataflow_error_entry)}
+
+    - build_payload:
+        assign:
+          - payload:
+              schema_version: "1"
+              event_type: ${"ingestion.job." + text.to_lower(status)}
+              published_at: ${time.format(sys.now())}
+              job:
+                job_id: ${job.job_id}
+                status: ${status}
+                status_reason: ${j[1].v}
+                error_code: ${j[2].v}
+                error_message: ${j[3].v}
+                job_name: ${j[4].v}
+                contract_name: ${j[5].v}
+                target_table: ${j[6].v}
+                rows_in_file: ${j[7].v}
+                rows_loaded: ${j[8].v}
+                validation_status: ${j[9].v}
+                recon_status: ${j[10].v}
+                start_time: ${j[11].v}
+                end_time: ${j[12].v}
+                attempt_number: ${j[13].v}
+              file:
+                bucket: ${bucket}
+                name: ${name}
+                generation: ${generation}
+                original_path: ${"gs://" + bucket + "/" + name}
+                final_path: ${final_file_path}
+              failed_checks: ${failed_checks}
+              dataflow:
+                job_id: ${dataflow_job_id}
+                state: ${dataflow_state}
+                launch_error: ${dataflow_error}
+                error_messages: ${dataflow_errors}
+                console_url: ${if(dataflow_job_id == "", "", "https://console.cloud.google.com/dataflow/jobs/" + region + "/" + dataflow_job_id + "?project=" + project)}
+              orchestration:
+                workflow: ${workflow_id}
+                execution_id: ${execution_id}
+                console_url: ${"https://console.cloud.google.com/workflows/workflow/" + region + "/" + workflow_id + "/execution/" + execution_id + "?project=" + project}
+              audit_queries:
+                job_metadata: ${"SELECT * FROM `" + project + "." + dataset + ".job_metadata` WHERE job_id = '" + job.job_id + "'"}
+                validation_metadata: ${"SELECT * FROM `" + project + "." + dataset + ".validation_metadata` WHERE job_id = '" + job.job_id + "' ORDER BY check_name"}
+              retry_hint: ${if(status == "REJECTED", "File failed validation and was moved to invalid/. Fix the issues in failed_checks and re-upload the corrected file to landing/.", "Processing failed (see dataflow.error_messages / launch_error). After fixing the cause, re-upload the same file to landing/ to retry; the original is in final_path.")}
+
+    - publish:
+        call: http.post
+        args:
+          url: ${"https://pubsub.googleapis.com/v1/projects/" + project + "/topics/" + sys.get_env("DFA_ERROR_TOPIC") + ":publish"}
+          auth:
+            type: OAuth2
+          body:
+            messages:
+              - data: ${base64.encode(json.encode(payload))}
+                attributes:
+                  status: ${status}
+                  error_code: ${default(j[2].v, "NONE")}
+                  job_id: ${job.job_id}
+                  job_name: ${default(j[4].v, "unknown")}
+                  file_name: ${name}
+        result: published
+    - done:
+        return: ${published.body.messageIds[0]}
+
+
+# Runs a GoogleSQL query against BigQuery with named STRING parameters; returns the response body.
+bq_query:
+  params: [sql, params]
+  steps:
+    - init:
+        assign:
+          - project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - table: ${"`" + project + "." + sys.get_env("DFA_AUDIT_DATASET") + ".job_metadata`"}
+          - validation_table: ${"`" + project + "." + sys.get_env("DFA_AUDIT_DATASET") + ".validation_metadata`"}
+          - query: ${text.replace_all(text.replace_all(sql, "{job_metadata}", table), "{validation_metadata}", validation_table)}
+          - query_params: []
+    - build_params:
+        for:
+          value: key
+          in: ${keys(params)}
+          steps:
+            # Expressions can't contain map literals: build the parameter as a YAML map, then append.
+            - add_param:
+                assign:
+                  - param:
+                      name: ${key}
+                      parameterType:
+                        type: "STRING"
+                      parameterValue:
+                        value: ${params[key]}
+                  - query_params: ${list.concat(query_params, param)}
+    - run_query:
+        call: http.post
+        args:
+          url: ${"https://bigquery.googleapis.com/bigquery/v2/projects/" + project + "/queries"}
+          auth:
+            type: OAuth2
+          timeout: 180
+          body:
+            query: ${query}
+            useLegacySql: false
+            location: ${sys.get_env("DFA_REGION")}
+            parameterMode: "NAMED"
+            queryParameters: ${query_params}
+            timeoutMs: 150000
+        result: response
+    - check_complete:
+        switch:
+          - condition: ${not(response.body.jobComplete)}
+            raise: ${"BigQuery query did not complete in time - " + text.substring(query, 0, 120)}
+    - done:
+        return: ${response.body}

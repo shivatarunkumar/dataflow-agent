@@ -1,0 +1,48 @@
+{
+  "name": "gcs-to-bq-ingest",
+  "description": "Validates a delimited file in GCS (file name, header, delimiter, trailer, data types), loads it to BigQuery, reconciles counts and writes audit metadata.",
+  "parameters": [
+    {
+      "name": "input_file",
+      "label": "Input file",
+      "helpText": "gs:// URI of the file to ingest.",
+      "regexes": ["^gs:\\/\\/[^\\n\\r]+$"]
+    },
+    {
+      "name": "audit_job_id",
+      "label": "Audit job ID",
+      "helpText": "job_metadata.job_id registered by the workflow.",
+      "isOptional": true
+    },
+    {
+      "name": "file_generation",
+      "label": "File generation",
+      "helpText": "GCS object generation.",
+      "isOptional": true
+    },
+    {
+      "name": "pubsub_message_id",
+      "label": "Pub/Sub message ID",
+      "helpText": "Message that triggered the run.",
+      "isOptional": true
+    },
+    {
+      "name": "trigger_type",
+      "label": "Trigger type",
+      "helpText": "PUBSUB or MANUAL.",
+      "isOptional": true
+    },
+    {
+      "name": "audit_dataset",
+      "label": "Audit dataset",
+      "helpText": "Dataset with job_metadata and validation_metadata.",
+      "isOptional": true
+    },
+    {
+      "name": "target_dataset",
+      "label": "Target dataset",
+      "helpText": "Dataset with the target tables.",
+      "isOptional": true
+    }
+  ]
+}

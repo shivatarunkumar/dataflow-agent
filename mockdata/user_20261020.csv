@@ -1,0 +1,5 @@
+user_id,username,email,customer_id,role,created_at,last_login_at
+101,ana_1,ana1@example.com,1,member,2026-01-12T11:38:00Z,2026-02-12T11:38:00Z
+102,ben_2,ben2@example.com,2,member,2025-05-30T16:02:00Z,2025-06-03T16:02:00Z
+103,chloe_3,chloe3@example.com,3,viewer,2026-03-13T14:40:00Z,
+104,dev_4,dev4@example.com,4,member,2026-02-06T13:14:00Z,2026-03-13T13:14:00Z

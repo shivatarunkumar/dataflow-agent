@@ -1,0 +1,17 @@
+user_id,username,email,customer_id,role,created_at,last_login_at
+101,ana_1,ana1@example.com,1,admin,2026-02-14T14:32:00Z,2026-05-24T14:32:00Z
+102,ben_2,ben2@example.com,2,viewer,2025-06-26T09:32:00Z,2025-08-06T09:32:00Z
+103,chloe_3,chloe3@example.com,3,member,2025-07-16T10:07:00Z,
+104,dev_4,dev4@example.com,4,viewer,2025-12-16T14:22:00Z,2026-01-13T14:22:00Z
+105,ella_5,ella5@example.com,5,member,2025-09-19T16:49:00Z,2025-10-08T16:49:00Z
+106,farah_6,farah6@example.com,6,member,2025-05-11T13:12:00Z,
+107,george_7,george7@example.com,7,viewer,2026-03-18T18:58:00Z,2026-05-12T18:58:00Z
+108,hana_8,hana8@example.com,8,viewer,2025-09-02T12:44:00Z,2025-09-20T12:44:00Z
+109,ivan_9,ivan9@example.com,9,admin,2025-04-16T09:48:00Z,
+110,jade_10,jade10@example.com,10,viewer,2025-05-18T11:43:00Z,2025-08-14T11:43:00Z
+111,kiran_11,kiran11@example.com,11,viewer,2025-12-31T10:05:00Z,2026-02-19T10:05:00Z
+112,liam_12,liam12@example.com,12,member,2025-12-31T16:59:00Z,
+113,maya_13,maya13@example.com,13,admin,2025-12-09T09:11:00Z,2026-03-07T09:11:00Z
+114,noah_14,noah14@example.com,14,member,2026-02-13T18:09:00Z,2026-05-21T18:09:00Z
+115,olivia_15,olivia15@example.com,15,admin,2026-03-29T14:48:00Z,
+T|15|20261015

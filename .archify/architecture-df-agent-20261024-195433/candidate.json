@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "df-agent Incident Response Architecture",
+    "output": ".archify/architecture-df-agent-20261024-195433/df-agent.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "components": [
+    { "id": "errsub", "type": "messagebus", "label": "dfa-ingest-errors-sub", "sublabel": "Pub/Sub · 7-day retention", "pos": [40, 240], "size": [160, 64] },
+    { "id": "ingest", "type": "cloud", "label": "dfa-ingest-file", "sublabel": "Workflows · publish_failure", "pos": [40, 430], "size": [170, 64] },
+    { "id": "landing", "type": "cloud", "label": "GCS landing/", "sublabel": "new generation re-ingests", "pos": [40, 620], "size": [170, 64] },
+    { "id": "listener", "type": "backend", "label": "Listener", "sublabel": "runner.py listen / once", "pos": [340, 240], "size": [150, 64], "tag": "ack after record" },
+    { "id": "intake", "type": "backend", "label": "intake", "sublabel": "dedupe · NO_INCIDENT", "pos": [580, 240], "size": [140, 64] },
+    { "id": "audit", "type": "backend", "label": "Audit agent", "sublabel": "BQ read tools", "pos": [800, 150], "size": [150, 64] },
+    { "id": "gcp", "type": "backend", "label": "GCP agent", "sublabel": "Dataflow · Logs · IAM", "pos": [800, 330], "size": [150, 64] },
+    { "id": "bqaudit", "type": "database", "label": "file_audit tables", "sublabel": "job / validation_metadata", "pos": [800, 20], "size": [150, 64] },
+    { "id": "gcpapis", "type": "cloud", "label": "GCP APIs", "sublabel": "read-only · dfa-agent SA", "pos": [800, 470], "size": [150, 64] },
+    { "id": "loganalyst", "type": "backend", "label": "Log analyst", "sublabel": "errors.py · no LLM", "pos": [1040, 240], "size": [150, 64] },
+    { "id": "investigator", "type": "backend", "label": "Investigator", "sublabel": "signatures + guards", "pos": [1300, 240], "size": [150, 64], "tag": "≤ 2 evidence rounds" },
+    { "id": "brain", "type": "database", "label": "brain/", "sublabel": "runbooks · signatures · policies", "pos": [1540, 240], "size": [180, 64] },
+    { "id": "planner", "type": "backend", "label": "Action planner", "sublabel": "playbook templates", "pos": [1300, 620], "size": [150, 64] },
+    { "id": "ollama", "type": "external", "label": "Ollama llama3.2", "sublabel": "localhost:11434", "pos": [1540, 620], "size": [160, 64] },
+    { "id": "codereview", "type": "backend", "label": "Code reviewer", "sublabel": "git apply --check", "pos": [1300, 780], "size": [150, 64] },
+    { "id": "actionreview", "type": "security", "label": "Action reviewer", "sublabel": "policy engine + LLM", "pos": [1040, 620], "size": [160, 64], "tag": "LLM can only downgrade" },
+    { "id": "executor", "type": "security", "label": "Executor", "sublabel": "RETRY_FILE only", "pos": [780, 620], "size": [150, 64] },
+    { "id": "operator", "type": "external", "label": "Operator", "sublabel": "make agent-approve", "pos": [540, 470], "size": [150, 64] },
+    { "id": "report", "type": "backend", "label": "Report writer", "sublabel": "Jinja MD + reportlab PDF", "pos": [780, 780], "size": [150, 64] },
+    { "id": "actions", "type": "database", "label": "actions/<job_id>/", "sublabel": "report · evidence · trace", "pos": [780, 930], "size": [150, 64] },
+    { "id": "record", "type": "backend", "label": "record", "sublabel": "one row per run", "pos": [540, 780], "size": [150, 64] },
+    { "id": "incidents", "type": "database", "label": "agent_incidents", "sublabel": "BigQuery · append-only", "pos": [300, 780], "size": [160, 64] }
+  ],
+  "connections": [
+    { "id": "landing-to-ingest", "from": "landing", "to": "ingest", "label": "OBJECT_FINALIZE" },
+    { "id": "ingest-to-errsub", "from": "ingest", "to": "errsub", "label": "FAILED / REJECTED" },
+    { "id": "errsub-to-listener", "from": "errsub", "to": "listener", "label": "pull, 1 at a time", "variant": "emphasis" },
+    { "id": "listener-to-intake", "from": "listener", "to": "intake", "label": "invoke" },
+    { "id": "intake-to-audit", "from": "intake", "to": "audit", "label": "fan-out" },
+    { "id": "intake-to-gcp", "from": "intake", "to": "gcp", "label": "fan-out" },
+    { "id": "audit-reads", "from": "audit", "to": "bqaudit", "label": "query" },
+    { "id": "gcp-reads", "from": "gcp", "to": "gcpapis", "label": "read" },
+    { "id": "audit-evidence", "from": "audit", "to": "loganalyst", "label": "evidence" },
+    { "id": "gcp-evidence", "from": "gcp", "to": "loganalyst", "label": "evidence" },
+    { "id": "digest", "from": "loganalyst", "to": "investigator", "label": "error digest" },
+    { "id": "more-audit", "from": "investigator", "to": "audit", "label": "more evidence", "variant": "dashed" },
+    { "id": "more-gcp", "from": "investigator", "to": "gcp", "label": "more evidence", "variant": "dashed" },
+    { "id": "brain-to-investigator", "from": "brain", "to": "investigator", "label": "runbooks" },
+    { "id": "root-cause", "from": "investigator", "to": "planner", "label": "RootCause" },
+    { "id": "investigator-llm", "from": "investigator", "to": "ollama", "label": "prompt", "variant": "dashed" },
+    { "id": "planner-llm", "from": "planner", "to": "ollama", "label": "narrative", "variant": "dashed" },
+    { "id": "plan-to-review", "from": "planner", "to": "actionreview", "label": "ActionPlan" },
+    { "id": "plan-to-code", "from": "planner", "to": "codereview", "label": "if patch" },
+    { "id": "code-verdict", "from": "codereview", "to": "actionreview", "label": "verdict" },
+    { "id": "auto-approved", "from": "actionreview", "to": "executor", "label": "AUTO_APPROVED", "variant": "security" },
+    { "id": "human-approve", "from": "operator", "to": "executor", "label": "approve NEEDS_HUMAN", "variant": "dashed" },
+    { "id": "retry-copy", "from": "executor", "to": "landing", "label": "create-only copy", "variant": "emphasis" },
+    { "id": "executor-to-report", "from": "executor", "to": "report", "label": "outcome" },
+    { "id": "report-writes", "from": "report", "to": "actions", "label": "write" },
+    { "id": "report-to-record", "from": "report", "to": "record" },
+    { "id": "record-writes", "from": "record", "to": "incidents", "label": "INSERT" }
+  ],
+  "cards": [
+    { "dot": "rose", "title": "Safety layers", "items": [
+      "dfa-agent SA: read roles + objectCreator on landing only, so nothing can be deleted or overwritten",
+      "Policy engine rejects unknown action types, paths outside landing and destructive verbs",
+      "Code, config and data fixes are report-only; patches are never applied"
+    ] },
+    { "dot": "amber", "title": "Auto-retry rules", "items": [
+      "Event is FAILED (never REJECTED) and root cause is TRANSIENT_INFRA at confidence ≥ 0.7",
+      "Fewer than 2 agent retries for the file in 24 h",
+      "Source exists in invalid/ and landing/<file> does not"
+    ] },
+    { "dot": "cyan", "title": "Runtime", "items": [
+      "One LangGraph run per incident, SQLite checkpoints in .state/",
+      "A crash leaves the message unacked, so Pub/Sub redelivers it",
+      "Signatures decide known errors; llama3.2 explains and fills reports"
+    ] }
+  ]
+}

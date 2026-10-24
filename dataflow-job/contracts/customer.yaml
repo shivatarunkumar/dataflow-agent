@@ -1,0 +1,16 @@
+name: customer
+version: "1.0"
+file_prefix: customer
+file_name_pattern: '^customer_(?P<file_date>\d{8})\.csv$'
+delimiter: ","
+target_table: customer
+load_mode: append
+columns:
+  - {name: customer_id, type: INTEGER, nullable: false}
+  - {name: first_name, type: STRING}
+  - {name: last_name, type: STRING}
+  - {name: email, type: STRING}
+  - {name: phone, type: STRING}
+  - {name: country, type: STRING}
+  - {name: signup_date, type: DATE}
+  - {name: is_active, type: BOOLEAN}

@@ -1,0 +1,42 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	intake(intake)
+	close_no_incident(close_no_incident)
+	audit_agent(audit_agent)
+	gcp_agent(gcp_agent)
+	log_analyst(log_analyst)
+	investigator(investigator)
+	action_planner(action_planner)
+	code_reviewer(code_reviewer)
+	action_reviewer(action_reviewer)
+	executor(executor)
+	report_writer(report_writer)
+	record(record)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> intake;
+	action_planner -.-> action_reviewer;
+	action_planner -.-> code_reviewer;
+	action_reviewer --> executor;
+	audit_agent --> log_analyst;
+	close_no_incident --> report_writer;
+	code_reviewer --> action_reviewer;
+	executor --> report_writer;
+	gcp_agent --> log_analyst;
+	intake -.-> __end__;
+	intake -.-> audit_agent;
+	intake -.-> close_no_incident;
+	intake -.-> gcp_agent;
+	investigator -.-> action_planner;
+	investigator -.-> audit_agent;
+	investigator -.-> gcp_agent;
+	log_analyst --> investigator;
+	report_writer --> record;
+	record --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
