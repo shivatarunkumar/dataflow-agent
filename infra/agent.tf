@@ -23,7 +23,7 @@ locals {
   agent_project_roles = [
     "roles/logging.viewer",   # Cloud Logging
     "roles/dataflow.viewer",  # job state + messages
-    "roles/workflows.viewer", # workflow executions
+    "roles/composer.user",    # Composer env + Airflow REST API (read-only GETs; Airflow role Viewer)
     "roles/bigquery.jobUser", # run read queries
     "roles/compute.viewer",   # regional quota usage
     # Hypothesis verification (read-only): IAM policies + role definitions, and dataset metadata/ACLs (no table data).

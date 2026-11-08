@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Beam pipeline: validate, gate, load, reconcile, audit",
+    "output": "docs/autodocs/diagrams/beam-pipeline.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+    }
+  },
+  "stages": [
+    {
+      "label": "Inputs"
+    },
+    {
+      "label": "Validate and parse"
+    },
+    {
+      "label": "Gate and load"
+    },
+    {
+      "label": "Reconcile and audit"
+    },
+    {
+      "label": "BigQuery tables"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "contracts",
+      "type": "database",
+      "label": "contracts/*.yaml",
+      "sublabel": "columns, delimiter",
+      "stage": 0,
+      "row": 0,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/contracts.py",
+          "line": 73,
+          "end_line": 84
+        },
+        {
+          "path": "dataflow-job/contracts/customer.yaml",
+          "line": 1,
+          "end_line": 16
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "csv",
+      "type": "cloud",
+      "label": "Input CSV",
+      "sublabel": "--input_file gs://",
+      "stage": 0,
+      "row": 2,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/options.py",
+          "line": 8,
+          "end_line": 19
+        }
+      ]
+    },
+    {
+      "id": "structure",
+      "type": "backend",
+      "label": "ValidateFileStructure",
+      "sublabel": "contract, name, header",
+      "stage": 1,
+      "row": 0,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/file_checks.py",
+          "line": 14,
+          "end_line": 61
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "content",
+      "type": "backend",
+      "label": "BuildContentChecks",
+      "sublabel": "delimiter, trailer, types",
+      "stage": 1,
+      "row": 1,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/file_checks.py",
+          "line": 76,
+          "end_line": 85
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "parse",
+      "type": "backend",
+      "label": "ParseRecord",
+      "sublabel": "ReadFromText, typed rows",
+      "stage": 1,
+      "row": 2,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/pipeline.py",
+          "line": 50,
+          "end_line": 63
+        },
+        {
+          "path": "dataflow-job/pipeline/transforms/parse.py",
+          "line": 6,
+          "end_line": 38
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "AllChecksPassed",
+      "sublabel": "file_ok side input",
+      "stage": 2,
+      "row": 0,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/pipeline.py",
+          "line": 76,
+          "end_line": 77
+        },
+        {
+          "path": "dataflow-job/pipeline/transforms/combiners.py",
+          "line": 37,
+          "end_line": 50
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "load",
+      "type": "backend",
+      "label": "LoadToTargetTable",
+      "sublabel": "FILE_LOADS, WRITE_APPEND",
+      "stage": 2,
+      "row": 2,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/load.py",
+          "line": 5,
+          "end_line": 33
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "writers",
+      "type": "backend",
+      "label": "Audit writers",
+      "sublabel": "validation rows, MERGE",
+      "stage": 3,
+      "row": 0,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/audit.py",
+          "line": 50,
+          "end_line": 71,
+          "label": "WriteValidationMetadata"
+        },
+        {
+          "path": "dataflow-job/pipeline/transforms/audit.py",
+          "line": 113,
+          "end_line": 208,
+          "label": "FinalizeJobMetadata"
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "recon",
+      "type": "backend",
+      "label": "ReconcileCounts",
+      "sublabel": "file = trailer = BQ",
+      "stage": 3,
+      "row": 1,
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/recon.py",
+          "line": 6,
+          "end_line": 47
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "validation_md",
+      "type": "database",
+      "label": "validation_metadata",
+      "sublabel": "1 row per check",
+      "stage": 4,
+      "row": 0,
+      "sources": [
+        {
+          "path": "infra/bq/validation_metadata.json",
+          "line": 1
+        }
+      ],
+      "width": 140
+    },
+    {
+      "id": "job_md",
+      "type": "database",
+      "label": "job_metadata",
+      "sublabel": "status, row counts",
+      "stage": 4,
+      "row": 1,
+      "sources": [
+        {
+          "path": "infra/bq/job_metadata.json",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "raw",
+      "type": "database",
+      "label": "raw.<entity>",
+      "sublabel": "+ _job_id lineage",
+      "stage": 4,
+      "row": 2,
+      "sources": [
+        {
+          "path": "infra/bigquery.tf",
+          "line": 31,
+          "end_line": 43
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "f-contracts",
+      "from": "contracts",
+      "to": "structure",
+      "label": "contract",
+      "variant": "default",
+      "route": "straight"
+    },
+    {
+      "id": "f-edges",
+      "from": "csv",
+      "to": "structure",
+      "label": "header + tail",
+      "variant": "default"
+    },
+    {
+      "id": "f-lines",
+      "from": "csv",
+      "to": "parse",
+      "label": "data lines",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        200,
+        402
+      ]
+    },
+    {
+      "id": "f-meta",
+      "from": "structure",
+      "to": "content",
+      "label": "FileMeta",
+      "variant": "default",
+      "labelAt": [
+        315,
+        201
+      ]
+    },
+    {
+      "id": "f-errors",
+      "from": "parse",
+      "to": "content",
+      "label": "error counts",
+      "variant": "default"
+    },
+    {
+      "id": "f-structure-results",
+      "from": "structure",
+      "to": "gate",
+      "label": "check results",
+      "variant": "default",
+      "route": "straight"
+    },
+    {
+      "id": "f-content-results",
+      "from": "content",
+      "to": "gate",
+      "label": "check results",
+      "variant": "default"
+    },
+    {
+      "id": "f-rows",
+      "from": "parse",
+      "to": "load",
+      "label": "valid rows",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "f-file-ok",
+      "from": "gate",
+      "to": "load",
+      "label": "file_ok",
+      "variant": "security",
+      "labelAt": [
+        530,
+        201
+      ]
+    },
+    {
+      "id": "f-append",
+      "from": "load",
+      "to": "raw",
+      "label": "append",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "f-jobs",
+      "from": "load",
+      "to": "recon",
+      "label": "load job ids",
+      "variant": "dashed"
+    },
+    {
+      "id": "f-count",
+      "from": "raw",
+      "to": "recon",
+      "label": "COUNT by _job_id",
+      "variant": "default"
+    },
+    {
+      "id": "f-results",
+      "from": "gate",
+      "to": "writers",
+      "label": "pre-load results",
+      "variant": "default",
+      "route": "straight",
+      "labelAt": [
+        638,
+        119
+      ]
+    },
+    {
+      "id": "f-recon-result",
+      "from": "recon",
+      "to": "writers",
+      "label": "recon result",
+      "variant": "default"
+    },
+    {
+      "id": "f-validation",
+      "from": "writers",
+      "to": "validation_md",
+      "label": "streaming insert",
+      "variant": "default",
+      "route": "straight",
+      "labelAt": [
+        853,
+        119
+      ]
+    },
+    {
+      "id": "f-merge",
+      "from": "writers",
+      "to": "job_md",
+      "label": "MERGE status",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Whole-file decision",
+      "items": [
+        "Any failed ERROR check rejects the whole file: nothing loads and the status is REJECTED",
+        "Reconciliation is SKIPPED when the file was rejected"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Sequencing",
+      "items": [
+        "ReconcileCounts waits on every load and copy job before it counts rows",
+        "job_metadata is written only with DML, so the workflow can still update the row"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Contract side input",
+      "items": [
+        "FileMeta carries the matched contract to every step, so one pipeline serves customer, user and orders"
+      ]
+    }
+  ]
+}

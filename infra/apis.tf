@@ -4,14 +4,12 @@ locals {
     "bigquery.googleapis.com",
     "cloudbuild.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    "composer.googleapis.com",
     "compute.googleapis.com",
     "dataflow.googleapis.com",
-    "eventarc.googleapis.com",
     "iam.googleapis.com",
     "pubsub.googleapis.com",
     "storage.googleapis.com",
-    "workflowexecutions.googleapis.com",
-    "workflows.googleapis.com",
   ]
 }
 

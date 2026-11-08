@@ -36,6 +36,17 @@ limits:
   evidence_item_max_chars: 6000
   prompt_evidence_max_chars: 12000
 
+# ServiceNow change request drafts (actions/<id>/change.md, df-agent.md §21). Organisation values only;
+# everything else is derived from the incident. The agent never creates records in ServiceNow.
+change:
+  service: "GCS to BigQuery ingestion (dfa)"
+  environment: "Production"
+  category: "Software"
+  assignment_group: "${DFA_CHANGE_GROUP:-Data Platform Engineering}"
+  requested_by: "${DFA_CHANGE_REQUESTER:-df-agent (on behalf of on-call)}"
+  data_owner: "Data owner of the {contract} feed"     # {contract} = the failed file's contract
+  ops_channel: "#data-platform-ops"
+
 gcp:
   project: "${DFA_PROJECT_ID:-bigquerytarun}"
   region: "${DFA_REGION:-europe-west2}"
@@ -44,6 +55,6 @@ gcp:
   dataflow_sa: "${DFA_DATAFLOW_SA}"                # fallback if the job's worker SA can't be read
   error_subscription: "${DFA_ERROR_SUBSCRIPTION}"
   audit_dataset: "${DFA_AUDIT_DATASET:-file_audit}"
-  workflow: "${DFA_WORKFLOW_NAME:-dfa-ingest-file}"
+  composer_env: "${DFA_COMPOSER_ENV:-dfa-composer}"   # Airflow REST API is reached through this environment
   incidents_table: "agent_incidents"
   impersonate_service_account: "${DFA_AGENT_SA}"   # empty = use your own ADC credentials

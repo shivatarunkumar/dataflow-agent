@@ -1,0 +1,420 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "df-agent incident graph (LangGraph)",
+    "output": "docs/autodocs/diagrams/agent-incident.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+    }
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Investigate and decide"
+    },
+    {
+      "id": "side",
+      "label": "Parallel and optional steps"
+    },
+    {
+      "id": "act",
+      "label": "Act and record"
+    }
+  ],
+  "phases": [
+    {
+      "id": "p-intake",
+      "label": "Intake",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "p-evidence",
+      "label": "Evidence",
+      "fromCol": 1,
+      "toCol": 2,
+      "variant": "dashed"
+    },
+    {
+      "id": "p-decide",
+      "label": "Root cause and plan",
+      "fromCol": 3,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "p-act",
+      "label": "Policy and action",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "intake",
+    "audit_agent",
+    "log_analyst",
+    "investigator",
+    "action_planner",
+    "action_reviewer",
+    "executor"
+  ],
+  "nodes": [
+    {
+      "id": "intake",
+      "lane": "main",
+      "col": 0,
+      "type": "backend",
+      "label": "intake",
+      "sublabel": "dedupe, incident check",
+      "tag": "SEV2 / SEV3",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/graph.py",
+          "line": 76,
+          "end_line": 96
+        },
+        {
+          "path": "df-agent/domains/dataflow_ingest/pack.py",
+          "line": 66,
+          "end_line": 90,
+          "label": "incident_check, severity"
+        }
+      ]
+    },
+    {
+      "id": "close_no_incident",
+      "lane": "side",
+      "col": 0,
+      "type": "backend",
+      "label": "close_no_incident",
+      "sublabel": "SUCCESS, IN_PROGRESS, dup",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/graph.py",
+          "line": 98,
+          "end_line": 107
+        }
+      ]
+    },
+    {
+      "id": "audit_agent",
+      "lane": "main",
+      "col": 1,
+      "type": "backend",
+      "label": "audit_agent",
+      "sublabel": "job_metadata, checks",
+      "sources": [
+        {
+          "path": "df-agent/domains/dataflow_ingest/tools_audit.py",
+          "line": 18,
+          "end_line": 85
+        },
+        {
+          "path": "df-agent/incident_core/agents/gatherer.py",
+          "line": 65,
+          "end_line": 148
+        }
+      ]
+    },
+    {
+      "id": "gcp_agent",
+      "lane": "side",
+      "col": 1,
+      "type": "cloud",
+      "label": "gcp_agent",
+      "sublabel": "Dataflow, Logging, IAM",
+      "sources": [
+        {
+          "path": "df-agent/domains/dataflow_ingest/tools_gcp.py",
+          "line": 62,
+          "end_line": 226
+        }
+      ]
+    },
+    {
+      "id": "log_analyst",
+      "lane": "main",
+      "col": 2,
+      "type": "backend",
+      "label": "log_analyst",
+      "sublabel": "digest, signatures",
+      "tag": "no LLM",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/agents/log_analyst.py",
+          "line": 24,
+          "end_line": 103
+        }
+      ]
+    },
+    {
+      "id": "investigator",
+      "lane": "main",
+      "col": 3,
+      "type": "backend",
+      "label": "investigator",
+      "sublabel": "root cause category",
+      "tag": "signature ≥ 0.85 decides",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/agents/investigator.py",
+          "line": 50,
+          "end_line": 153
+        }
+      ]
+    },
+    {
+      "id": "action_planner",
+      "lane": "main",
+      "col": 4,
+      "type": "backend",
+      "label": "action_planner",
+      "sublabel": "playbook actions",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/agents/planner.py",
+          "line": 104,
+          "end_line": 169
+        },
+        {
+          "path": "df-agent/brain/playbooks.yaml",
+          "line": 1,
+          "end_line": 40
+        }
+      ]
+    },
+    {
+      "id": "code_reviewer",
+      "lane": "side",
+      "col": 4,
+      "type": "security",
+      "label": "code_reviewer",
+      "sublabel": "git apply --check",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/agents/reviewers.py",
+          "line": 13,
+          "end_line": 56
+        }
+      ]
+    },
+    {
+      "id": "action_reviewer",
+      "lane": "main",
+      "col": 5,
+      "type": "security",
+      "label": "action_reviewer",
+      "sublabel": "policy engine + LLM",
+      "tag": "LLM can only downgrade",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/agents/reviewers.py",
+          "line": 59,
+          "end_line": 112
+        },
+        {
+          "path": "df-agent/incident_core/policy.py",
+          "line": 64,
+          "end_line": 92
+        },
+        {
+          "path": "df-agent/brain/policies.yaml",
+          "line": 12,
+          "end_line": 57
+        }
+      ]
+    },
+    {
+      "id": "executor",
+      "lane": "act",
+      "col": 5,
+      "type": "security",
+      "label": "executor",
+      "sublabel": "AUTO_APPROVED only",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/graph.py",
+          "line": 109,
+          "end_line": 135
+        },
+        {
+          "path": "df-agent/domains/dataflow_ingest/executor.py",
+          "line": 8,
+          "end_line": 30
+        }
+      ]
+    },
+    {
+      "id": "report_writer",
+      "lane": "act",
+      "col": 1,
+      "type": "backend",
+      "label": "report_writer",
+      "sublabel": "actions/<id>/ md, pdf, json",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/report/writer.py",
+          "line": 23,
+          "end_line": 76
+        }
+      ]
+    },
+    {
+      "id": "record",
+      "lane": "act",
+      "col": 0,
+      "type": "database",
+      "label": "record",
+      "sublabel": "agent_incidents + local JSONL",
+      "sources": [
+        {
+          "path": "df-agent/incident_core/graph.py",
+          "line": 140,
+          "end_line": 161
+        },
+        {
+          "path": "df-agent/incident_core/store.py",
+          "line": 84,
+          "end_line": 112
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-intake-audit",
+      "from": "intake",
+      "to": "audit_agent",
+      "label": "incident",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-intake-gcp",
+      "from": "intake",
+      "to": "gcp_agent",
+      "label": "parallel",
+      "role": "branch"
+    },
+    {
+      "id": "e-intake-close",
+      "from": "intake",
+      "to": "close_no_incident",
+      "label": "not an incident",
+      "role": "branch"
+    },
+    {
+      "id": "e-audit-log",
+      "from": "audit_agent",
+      "to": "log_analyst",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-gcp-log",
+      "from": "gcp_agent",
+      "to": "log_analyst",
+      "label": "join"
+    },
+    {
+      "id": "e-log-inv",
+      "from": "log_analyst",
+      "to": "investigator",
+      "label": "digest",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-inv-more",
+      "from": "investigator",
+      "to": "audit_agent",
+      "label": "more evidence (≤ 2 rounds)",
+      "role": "return",
+      "variant": "dashed"
+    },
+    {
+      "id": "e-inv-plan",
+      "from": "investigator",
+      "to": "action_planner",
+      "label": "root cause",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-plan-code",
+      "from": "action_planner",
+      "to": "code_reviewer",
+      "label": "code change",
+      "role": "branch"
+    },
+    {
+      "id": "e-code-review",
+      "from": "code_reviewer",
+      "to": "action_reviewer"
+    },
+    {
+      "id": "e-plan-review",
+      "from": "action_planner",
+      "to": "action_reviewer",
+      "label": "plan",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-review-exec",
+      "from": "action_reviewer",
+      "to": "executor",
+      "label": "decisions",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-exec-report",
+      "from": "executor",
+      "to": "report_writer",
+      "role": "return",
+      "label": "write report"
+    },
+    {
+      "id": "e-report-record",
+      "from": "report_writer",
+      "to": "record",
+      "role": "return",
+      "label": "record"
+    },
+    {
+      "id": "e-close-report",
+      "from": "close_no_incident",
+      "to": "report_writer",
+      "label": "NO_INCIDENT",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Routing",
+      "items": [
+        "An incident already handled ends at intake (use agent-replay to force a rerun)",
+        "The investigator's request for more evidence reruns both gatherers"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Decisions",
+      "items": [
+        "AUTO_APPROVED, NEEDS_HUMAN, REPORT or REJECTED per action",
+        "NEEDS_HUMAN actions run later through make agent-approve"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Outcomes",
+      "items": [
+        "AUTO_RESOLVED only when every executed action succeeded and nothing waits on a human",
+        "Otherwise AWAITING_HUMAN, with the report in actions/<incident_id>/"
+      ]
+    }
+  ]
+}

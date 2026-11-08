@@ -57,6 +57,23 @@ signatures:
         description: "The Dataflow flex template or its image is missing: {error_message}"
         steps: ["make docker", "Retry: make agent-approve INCIDENT={incident_id}"]
 
+  # The Flex Template launch request itself was rejected (bad parameter/template spec): Airflow fails before any
+  # Dataflow job exists. 403s are caught by permission_denied (higher confidence), missing templates by template_missing.
+  - id: dataflow_launch_rejected
+    category: CONFIG
+    confidence: 0.88
+    when: {status: FAILED}
+    any_text: ['HttpError 400 when requesting \S*flexTemplates:launch', 'flexTemplates:launch.{0,300}INVALID_ARGUMENT',
+               'launch_flex_template.{0,300}(HttpError 400|INVALID_ARGUMENT)', 'Invalid (template|value for) .{0,80}parameter']
+    runbook: DATAFLOW_LAUNCH_FAILED
+    remediation:
+      PROPOSE_CONFIG_CHANGE:
+        description: "Dataflow rejected the Flex Template launch from Airflow (no job was created): {error_message}"
+        steps:
+          - "Compare the launch parameters in dags/gcs_to_bq_dataflow.py (run_dataflow body) with dataflow-job/metadata.json; rebuild the spec with make template if metadata.json changed."
+          - "Deploy the fixed DAG: make dags-deploy"
+          - "Retry: make agent-approve INCIDENT={incident_id}"
+
   # --- Transient ---------------------------------------------------------------------------------------
   - id: quota_exceeded
     category: TRANSIENT_INFRA
@@ -87,6 +104,25 @@ signatures:
     case_sensitive: true
     any_text: ['\bUNAVAILABLE\b', 'backendError', 'An internal error occurred', 'DEADLINE_EXCEEDED', 'HTTP 50[0-9]', '\bhttp=50[0-9]\b', 'Connection reset']
     runbook: DATAFLOW_JOB_FAILED
+
+  # The Airflow worker running the task died or was restarted (Composer autoscaling/maintenance).
+  - id: airflow_zombie
+    category: TRANSIENT_INFRA
+    confidence: 0.85
+    when: {status: FAILED}
+    any_text: ['Detected zombie job', 'was killed externally', 'received SIGTERM', 'killed as zombie',
+               'finished \(failed\) although the task says']
+    runbook: AIRFLOW_TASK_FAILED
+
+  # run_dataflow exceeded its 60-minute execution_timeout (Airflow cancels the Dataflow job). Below the 0.7 auto-retry
+  # bar on purpose: a job that always takes > 60 min would just time out again.
+  - id: airflow_task_timeout
+    category: TRANSIENT_INFRA
+    confidence: 0.65
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['AirflowTaskTimeout', 'Timeout, PID: \d+']
+    runbook: AIRFLOW_TASK_FAILED
 
   - id: poll_timeout
     category: TRANSIENT_INFRA
@@ -119,6 +155,15 @@ signatures:
     case_sensitive: true
     any_text: ['File "[^"]*/pipeline/[\w/]+\.py"']
     runbook: DATAFLOW_JOB_FAILED
+
+  # An exception raised from OUR DAG code (a frame in dags/...py: register_job, finalize, helpers).
+  - id: airflow_dag_code_error
+    category: CODE_BUG
+    confidence: 0.8
+    when: {status: FAILED}
+    case_sensitive: true
+    any_text: ['File "[^"]*/dags/[\w/]+\.py"']
+    runbook: AIRFLOW_TASK_FAILED
 
   # Every Dataflow failure contains a traceback: on its own this is only a weak hint, never decisive.
   - id: python_traceback

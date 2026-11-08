@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "ea3646cb-e1f8-4f12-8081-8ee639c7ea6f",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.json",
+  "output": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.html",
+  "specification": {
+    "sha256": "7208c609f07de14cd82137616e498182324caeda387b5a0c12665c27121a2cdf",
+    "bytes": 8815
+  },
+  "artifact": {
+    "sha256": "2611e5e94f9ad90ab10c54814e349545a926f06624bc047f56007ca452e73e99",
+    "bytes": 851426
+  }
+}

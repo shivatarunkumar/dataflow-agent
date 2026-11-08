@@ -1,0 +1,65 @@
+{% if cr.required %}
+# Change Request (draft): {{ cr.short_description }}
+
+> Drafted by df-agent for incident `{{ incident_id }}` on {{ generated_at }}. Every value comes from the incident's
+> evidence; review it before submitting. The agent never creates records in ServiceNow.
+> API payload with the same content: `details/change_request.json` (POST
+> `/api/now/table/change_request?sysparm_input_display_value=true`, so group, user and CI names resolve).
+
+## Change details
+| Field | Value |
+|---|---|
+| Short description | {{ cr.short_description }} |
+{% for f in cr.fields %}| {{ f.label }} | {{ (f.value if f.value not in (none, "") else "-")|string|replace("|", "\\|") }} |
+{% endfor %}
+
+{% if cr.manual_fields %}
+## Fill in when raising the CR
+| Field | Guidance |
+|---|---|
+{% for f in cr.manual_fields %}| {{ f.label }}{% if f.api %} (`{{ f.api }}`){% endif %} | {{ f.hint|replace("|", "\\|") }} |
+{% endfor %}
+{% endif %}
+
+{% for s in cr.sections %}
+## {{ s.title }}{% if s.api %} <sub>(`{{ s.api }}`)</sub>{% endif %}
+
+{% for p in s.paragraphs or [] %}
+{{ p }}
+
+{% endfor %}
+{% for step in s.steps or [] %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+{% if s.steps %}
+
+{% endif %}
+{% for b in s.bullets or [] %}
+- {{ b }}
+{% endfor %}
+{% if s.bullets %}
+
+{% endif %}
+{% if s.code %}
+```
+{{ s.code }}
+```
+
+{% endif %}
+{% endfor %}
+{% else %}
+# Change Request: not required
+
+Incident `{{ incident_id }}` ({{ event.status }} {{ event.subject }}){% if rc.category %}, root cause **{{ rc.category }}**{% endif %}.
+
+**Why no change request:** {{ cr.reason }}
+
+{% if cr.instead %}
+**What to do instead:**
+{% for step in cr.instead %}
+- {{ step }}
+{% endfor %}
+{% endif %}
+
+The full investigation is in `report.pdf`.
+{% endif %}

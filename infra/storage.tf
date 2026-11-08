@@ -30,16 +30,5 @@ resource "google_storage_bucket" "dataflow" {
     }
   }
 
-  # Delivery claims (workflows/ingest_file.yaml) only need to outlive Pub/Sub's 7-day redelivery window.
-  lifecycle_rule {
-    condition {
-      age            = 8
-      matches_prefix = ["claims/"]
-    }
-    action {
-      type = "Delete"
-    }
-  }
-
   depends_on = [google_project_service.services]
 }

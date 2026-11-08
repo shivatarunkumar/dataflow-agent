@@ -59,10 +59,8 @@ class GcpClients:
         return dataflow_v1beta3.MessagesV1Beta3Client(credentials=self.credentials)
 
     @cached_property
-    def workflow_executions(self):
-        from google.cloud.workflows import executions_v1
-
-        return executions_v1.ExecutionsClient(credentials=self.credentials)
+    def airflow(self):
+        return AirflowApi(self.credentials, self.project, self.region, self.cfg.get("composer_env") or "")
 
     @cached_property
     def regions(self):
@@ -87,3 +85,40 @@ class GcpClients:
         from google.cloud import pubsub_v1
 
         return pubsub_v1.SubscriberClient(credentials=self.credentials)
+
+
+class AirflowApi:
+    """Read-only Airflow REST API (v1) of the Composer environment. Only GET is implemented on purpose; the agent's
+    Airflow role is Viewer as well (infra/composer.tf), so it can never trigger, clear or delete runs."""
+
+    def __init__(self, credentials, project: str, region: str, environment: str):
+        self.credentials, self.project, self.region, self.environment = credentials, project, region, environment
+        self._base_url = None
+
+    @cached_property
+    def session(self):
+        from google.auth.transport.requests import AuthorizedSession
+
+        return AuthorizedSession(self.credentials)
+
+    def base_url(self) -> str:
+        """Airflow web server URL from the Composer API (environment must exist, i.e. make airflow-up)."""
+        if self._base_url is None:
+            if not self.environment:
+                raise RuntimeError("no Composer environment configured (gcp.composer_env)")
+            name = f"projects/{self.project}/locations/{self.region}/environments/{self.environment}"
+            response = self.session.get(f"https://composer.googleapis.com/v1/{name}", timeout=30)
+            if response.status_code == 404:
+                raise RuntimeError(f"Composer environment {self.environment} does not exist (deleted by make airflow-down?)")
+            response.raise_for_status()
+            uri = response.json().get("config", {}).get("airflowUri")
+            if not uri:
+                raise RuntimeError(f"Composer environment {self.environment} has no Airflow URI yet (still creating?)")
+            self._base_url = uri.rstrip("/")
+        return self._base_url
+
+    def get(self, path: str, params: dict | None = None, text: bool = False):
+        headers = {"Accept": "text/plain"} if text else {"Accept": "application/json"}
+        response = self.session.get(f"{self.base_url()}/api/v1/{path}", params=params, headers=headers, timeout=60)
+        response.raise_for_status()
+        return response.text if text else response.json()

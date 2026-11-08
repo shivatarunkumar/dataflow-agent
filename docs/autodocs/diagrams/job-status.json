@@ -1,0 +1,251 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Ingestion job status (file_audit.job_metadata)",
+    "output": "docs/autodocs/diagrams/job-status.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+    }
+  },
+  "mainPath": [
+    "landed",
+    "in_progress",
+    "running",
+    "success"
+  ],
+  "states": [
+    {
+      "id": "landed",
+      "type": "start",
+      "label": "File landed",
+      "sublabel": "landing/<file>",
+      "tag": "no row yet",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 39,
+          "end_line": 71,
+          "label": "parse, filter, claim"
+        }
+      ]
+    },
+    {
+      "id": "in_progress",
+      "type": "active",
+      "label": "Registered",
+      "sublabel": "status IN_PROGRESS",
+      "tag": "workflow INSERT",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 218,
+          "end_line": 287,
+          "label": "register_job"
+        }
+      ]
+    },
+    {
+      "id": "waiting",
+      "type": "waiting",
+      "label": "Waiting for slot",
+      "sublabel": "still IN_PROGRESS",
+      "tag": "60 s retry",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 293,
+          "end_line": 381,
+          "label": "acquire_slot"
+        }
+      ]
+    },
+    {
+      "id": "running",
+      "type": "decision",
+      "label": "Dataflow running",
+      "sublabel": "validate, load, recon",
+      "tag": "MERGE status",
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/audit.py",
+          "line": 74,
+          "end_line": 110,
+          "label": "summarise_job"
+        },
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 406,
+          "end_line": 438,
+          "label": "wait_for_dataflow"
+        }
+      ]
+    },
+    {
+      "id": "success",
+      "type": "success",
+      "label": "SUCCESS",
+      "sublabel": "moved to archive/",
+      "tag": "terminal",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 483,
+          "end_line": 523,
+          "label": "move_file"
+        }
+      ]
+    },
+    {
+      "id": "rejected",
+      "type": "failure",
+      "label": "REJECTED",
+      "sublabel": "moved to invalid/",
+      "tag": "error event",
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/audit.py",
+          "line": 81,
+          "end_line": 85
+        }
+      ]
+    },
+    {
+      "id": "failed",
+      "type": "failure",
+      "label": "FAILED",
+      "sublabel": "moved to invalid/",
+      "tag": "error event",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 462,
+          "end_line": 481,
+          "label": "mark_failed_if_needed"
+        },
+        {
+          "path": "dataflow-job/pipeline/transforms/audit.py",
+          "line": 86,
+          "end_line": 90,
+          "label": "RECON_MISMATCH"
+        }
+      ]
+    },
+    {
+      "id": "duplicate",
+      "type": "neutral",
+      "label": "DUPLICATE_SKIPPED",
+      "sublabel": "generation already loaded",
+      "tag": "terminal",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 231,
+          "end_line": 242
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "register",
+      "from": "landed",
+      "to": "in_progress",
+      "label": "claim + register",
+      "variant": "emphasis"
+    },
+    {
+      "id": "launch",
+      "from": "in_progress",
+      "to": "running",
+      "label": "slot free, launch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "done",
+      "from": "running",
+      "to": "success",
+      "label": "checks + recon pass",
+      "variant": "emphasis"
+    },
+    {
+      "id": "busy",
+      "from": "in_progress",
+      "to": "waiting",
+      "label": "all slots busy"
+    },
+    {
+      "id": "slot",
+      "from": "waiting",
+      "to": "running",
+      "label": "slot acquired"
+    },
+    {
+      "id": "reject",
+      "from": "running",
+      "to": "rejected",
+      "label": "pre-load check failed",
+      "variant": "security"
+    },
+    {
+      "id": "fail",
+      "from": "running",
+      "to": "failed",
+      "label": "not DONE / recon fail",
+      "variant": "security"
+    },
+    {
+      "id": "dup",
+      "from": "landed",
+      "to": "duplicate",
+      "label": "already SUCCESS"
+    },
+    {
+      "id": "retry",
+      "from": "failed",
+      "to": "landed",
+      "label": "df-agent RETRY_FILE",
+      "variant": "dashed"
+    },
+    {
+      "id": "reupload",
+      "from": "rejected",
+      "to": "landed",
+      "label": "fixed file re-uploaded",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who writes the status",
+      "items": [
+        "The workflow inserts IN_PROGRESS or DUPLICATE_SKIPPED",
+        "The Dataflow MERGE sets SUCCESS, REJECTED or FAILED",
+        "Finalize forces FAILED when the job did not end JOB_STATE_DONE",
+        "FAILED also covers launch or poll errors and POLL_TIMEOUT"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "After a failure",
+      "items": [
+        "FAILED and REJECTED both publish one event to dfa-ingest-errors",
+        "df-agent auto-retries only TRANSIENT_INFRA FAILED jobs, under 2 retries per 24 h",
+        "A retry is a create-only copy invalid/ → landing/, so it gets a new generation"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Not a state",
+      "items": [
+        "A duplicate Pub/Sub delivery hits an existing claim (HTTP 412) and exits without writing a row"
+      ]
+    }
+  ]
+}

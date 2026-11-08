@@ -15,6 +15,7 @@ _HTTP_ERROR_CLASS = re.compile(r"\b(Http[A-Za-z]*Error|HttpForbiddenError|Forbid
 _JSON_CODE = re.compile(r'"code"\s*:\s*(\d{3})')
 _PY_STATUS = re.compile(r"'status'\s*:\s*'(\d{3})'")
 _HTTP_WORD = re.compile(r"\b(?:HTTP|status code|Error code)\s*:?\s*(\d{3})\b", re.IGNORECASE)
+_GOOGLEAPI_HTTP = re.compile(r"<HttpError (\d{3}) ")  # googleapiclient (e.g. Airflow's Dataflow hook)
 _GRPC_STATUS = re.compile(r'"status"\s*:\s*"([A-Z_]{4,})"|\b(PERMISSION_DENIED|NOT_FOUND|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|'
                           r"INVALID_ARGUMENT|FAILED_PRECONDITION|ALREADY_EXISTS|UNAUTHENTICATED|INTERNAL|QUOTA_EXCEEDED)\b")
 _REASON = re.compile(r'"reason"\s*:\s*"(\w+)"')
@@ -81,7 +82,8 @@ _SPECIFICITY = {"permission": 0, "not_found": 1, "schema": 2, "encoding": 3, "qu
 def _analyse_block(block: str) -> dict | None:
     """One traceback / message → digest entry (None if there is no error in it)."""
     exc_lines = [(m.group(1), (m.group(2) or "").strip()) for m in _EXC_LINE.finditer(block)]
-    http_codes = [int(c) for c in _JSON_CODE.findall(block) + _PY_STATUS.findall(block) + _HTTP_WORD.findall(block)]
+    http_codes = [int(c) for c in _JSON_CODE.findall(block) + _PY_STATUS.findall(block) + _HTTP_WORD.findall(block)
+                  + _GOOGLEAPI_HTTP.findall(block)]
     statuses = [a or b for a, b in _GRPC_STATUS.findall(block)]
     messages = [m.replace('\\"', '"') for m in _MESSAGE.findall(block)]
     perm = _PERMISSION.search(block)

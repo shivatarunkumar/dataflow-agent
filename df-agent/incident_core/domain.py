@@ -87,6 +87,11 @@ class DomainPack(ABC):
         """Values for {placeholders} in signature remediation templates (brain/signatures.yaml)."""
         return {}
 
+    def change_request(self, state: dict) -> dict | None:
+        """ServiceNow change request draft for this incident (format: incident_core/report/change.py).
+        None = this domain doesn't draft change requests."""
+        return None
+
     def all_tools(self) -> dict:
         """Every tool by name (gatherer tools + verification-only tools)."""
         return {t.name: t for g in self.gatherers() for t in g.tools}

@@ -40,11 +40,26 @@ All distinct errors (error digest):
 {% if human_actions %}**Needs a human:** {{ human_actions|length }} action(s), listed below.
 {% endif %}
 
+## Change request
+{% if change.required %}
+A ServiceNow change request is drafted in `change.md`: **{{ change.short_description }}** ({{ change.type }} change, risk {{ change.risk }}, priority {{ change.priority }}).
+{% else %}
+No change request needed: {{ change.reason }} (see `change.md`).
+{% endif %}
+
 ## Facts
 | Field | Value |
 |---|---|
 {% for label, value in sections.facts %}| {{ label }} | {{ value if value is not none else "-" }} |
 {% endfor %}
+
+{% if sections.path %}
+## Investigation path
+| Layer | Finding |
+|---|---|
+{% for layer, finding in sections.path %}| {{ layer }} | {{ finding|replace("|", "\\|") }} |
+{% endfor %}
+{% endif %}
 
 {% if sections.timeline %}
 ## Timeline
@@ -85,7 +100,7 @@ Decision reasons: {{ a.decision.reasons|join("; ") }}
 To approve: `make agent-approve INCIDENT={{ incident_id }}`{% if a.manual_command %} (or run manually: `{{ a.manual_command }}`){% endif %}
 {% endif %}
 {% if a.patch %}
-Proposed patch (`proposed.patch`, not applied):
+Proposed patch (`details/proposed.patch`, not applied):
 ```diff
 {{ a.patch }}
 ```
@@ -105,7 +120,7 @@ Proposed patch (`proposed.patch`, not applied):
 {% for e in evidence %}| {{ e.id }} | {{ e.kind }} | {{ e.summary|replace("|", "/")|replace("\n", " ")|truncate(300) }} |
 {% endfor %}
 
-Full evidence: `evidence.json`.
+Full evidence: `details/evidence.json`.
 
 {% if sections.links %}
 ## Links
@@ -118,7 +133,7 @@ Full evidence: `evidence.json`.
 
 {{ trace_table }}
 
-Full trace: `trace.jsonl` / `trace.md`; LLM prompts and responses: `llm/`.
+Full trace: `details/trace.jsonl` / `details/trace.md`; LLM prompts and responses: `details/llm/`.
 
 {% if notes %}
 ## Agent notes

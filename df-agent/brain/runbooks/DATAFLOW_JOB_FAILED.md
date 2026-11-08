@@ -4,7 +4,8 @@
 ## How to confirm
 1. `get_dataflow_errors`: read the first error. It usually names the cause.
 2. `get_logs` preset `dataflow_job`: WARNING+ entries around the failure time.
-3. `get_workflow_execution`: did the launch itself fail (`LAUNCH_OR_POLL_FAILED`) or time out (`POLL_TIMEOUT`)?
+3. `get_airflow_task_instances` / `get_airflow_task_log` (`run_dataflow`): did the launch itself fail (no Dataflow job:
+   see DATAFLOW_LAUNCH_FAILED) or did Airflow time out (`AirflowTaskTimeout`: see AIRFLOW_TASK_FAILED)?
 
 ## Classify
 | Evidence | Category |
@@ -13,7 +14,7 @@
 | `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `An internal error occurred`, HTTP 5xx, connection reset | TRANSIENT_INFRA |
 | `PERMISSION_DENIED`, 403 | CONFIG (see PERMISSION_DENIED) |
 | Template or image not found | CONFIG (see TEMPLATE_MISSING) |
-| `POLL_TIMEOUT` (job ran > 60 min) | TRANSIENT_INFRA if the job later succeeded, otherwise UNKNOWN |
+| `POLL_TIMEOUT` (v1) / `AirflowTaskTimeout` (job ran > 60 min) | TRANSIENT_INFRA if the job later succeeded, otherwise UNKNOWN |
 
 ## Action
 - TRANSIENT_INFRA → `RETRY_FILE`.

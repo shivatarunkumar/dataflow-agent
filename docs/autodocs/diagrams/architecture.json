@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "dataflow-agent: GCS → BigQuery ingestion and incident agent",
+    "output": "docs/autodocs/diagrams/architecture.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+    }
+  },
+  "components": [
+    { "id": "provider", "type": "external", "label": "Data provider", "sublabel": "<entity>_<YYYYMMDD>.csv", "pos": [40, 60], "size": [150, 64],
+      "sources": [{ "path": "Makefile", "line": 114, "end_line": 115, "label": "make upload-mock" }] },
+    { "id": "landing", "type": "cloud", "label": "dfa-landing bucket", "sublabel": "landing/ archive/ invalid/", "pos": [300, 60], "size": [150, 64],
+      "sources": [{ "path": "infra/storage.tf", "line": 5, "end_line": 14 }] },
+    { "id": "topic", "type": "messagebus", "label": "dfa-file-landed", "sublabel": "Pub/Sub topic", "pos": [560, 60], "size": [150, 64],
+      "sources": [{ "path": "infra/pubsub.tf", "line": 1, "end_line": 25 }] },
+    { "id": "eventarc", "type": "cloud", "label": "Eventarc trigger", "sublabel": "1 execution / message", "pos": [820, 60], "size": [150, 64],
+      "sources": [{ "path": "infra/workflows.tf", "line": 33, "end_line": 58 }] },
+    { "id": "dfbucket", "type": "database", "label": "dfa-dataflow bucket", "sublabel": "claims/ locks/ templates/", "pos": [1080, 60], "size": [150, 64],
+      "sources": [
+        { "path": "infra/storage.tf", "line": 16, "end_line": 45 },
+        { "path": "workflows/ingest_file.yaml", "line": 168, "end_line": 200, "label": "claim_delivery" },
+        { "path": "workflows/ingest_file.yaml", "line": 290, "end_line": 381, "label": "acquire_slot" }
+      ] },
+    { "id": "workflow", "type": "backend", "label": "dfa-ingest-file", "sublabel": "Cloud Workflows", "tag": "max 1 Dataflow slot", "pos": [820, 260], "size": [150, 64],
+      "sources": [
+        { "path": "workflows/ingest_file.yaml", "line": 11, "end_line": 165, "label": "main" },
+        { "path": "infra/workflows.tf", "line": 6, "end_line": 31 },
+        { "path": "workflows/ingest_file.yaml", "line": 441, "end_line": 567, "label": "finalize_job" }
+      ] },
+    { "id": "errtopic", "type": "messagebus", "label": "dfa-ingest-errors", "sublabel": "topic + pull sub", "pos": [1080, 260], "size": [150, 64],
+      "sources": [
+        { "path": "infra/pubsub.tf", "line": 29, "end_line": 51 },
+        { "path": "workflows/ingest_file.yaml", "line": 570, "end_line": 727, "label": "publish_failure" }
+      ] },
+    { "id": "dfagent", "type": "backend", "label": "df-agent", "sublabel": "LangGraph, runs locally", "tag": "read-only + create-only", "pos": [1340, 260], "size": [150, 64],
+      "sources": [
+        { "path": "df-agent/incident_core/runner.py", "line": 79, "end_line": 119, "label": "Pub/Sub pull loop" },
+        { "path": "df-agent/incident_core/graph.py", "line": 71, "end_line": 201 },
+        { "path": "df-agent/domains/dataflow_ingest/executor.py", "line": 8, "end_line": 30, "label": "RETRY_FILE" }
+      ] },
+    { "id": "ollama", "type": "external", "label": "Ollama llama3.2", "sublabel": "localhost:11434", "pos": [1600, 260], "size": [150, 64],
+      "sources": [
+        { "path": "df-agent/config.yaml", "line": 9, "end_line": 17 },
+        { "path": "df-agent/incident_core/llm.py", "line": 17, "end_line": 33 }
+      ] },
+    { "id": "ar", "type": "cloud", "label": "Artifact Registry", "sublabel": "gcs-to-bq image", "pos": [560, 460], "size": [150, 64],
+      "sources": [
+        { "path": "infra/workflows.tf", "line": 1, "end_line": 4 },
+        { "path": "dataflow-job/Dockerfile", "line": 1, "end_line": 16 }
+      ] },
+    { "id": "dataflow", "type": "backend", "label": "Dataflow Flex job", "sublabel": "Beam: validate, load, recon", "pos": [820, 460], "size": [150, 64],
+      "sources": [
+        { "path": "dataflow-job/main.py", "line": 14, "end_line": 44 },
+        { "path": "dataflow-job/pipeline/pipeline.py", "line": 90, "end_line": 126 }
+      ] },
+    { "id": "raw", "type": "database", "label": "raw.<entity>", "sublabel": "customer user orders", "pos": [1080, 460], "size": [150, 64],
+      "sources": [
+        { "path": "infra/bigquery.tf", "line": 31, "end_line": 43 },
+        { "path": "dataflow-job/pipeline/transforms/load.py", "line": 5, "end_line": 33 }
+      ] },
+    { "id": "audit", "type": "database", "label": "file_audit dataset", "sublabel": "job_metadata · validation_metadata · agent_incidents", "pos": [560, 660], "size": [670, 64],
+      "sources": [
+        { "path": "infra/bigquery.tf", "line": 1, "end_line": 29 },
+        { "path": "infra/agent.tf", "line": 10, "end_line": 20 },
+        { "path": "dataflow-job/pipeline/transforms/audit.py", "line": 50, "end_line": 71 }
+      ] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "GCP project · europe-west2", "wraps": ["landing", "topic", "eventarc", "dfbucket", "workflow", "errtopic", "ar", "dataflow", "raw", "audit"] }
+  ],
+  "connections": [
+    { "id": "upload", "from": "provider", "to": "landing", "label": "upload CSV", "variant": "emphasis" },
+    { "id": "notify", "from": "landing", "to": "topic", "label": "notify", "variant": "emphasis" },
+    { "id": "push", "from": "topic", "to": "eventarc", "label": "push", "variant": "emphasis" },
+    { "id": "start", "from": "eventarc", "to": "workflow", "label": "start", "variant": "emphasis" },
+    { "id": "claim-lock", "from": "workflow", "to": "dfbucket", "label": "claim · lock", "fromSide": "top", "toSide": "bottom" },
+    { "id": "move-file", "from": "workflow", "to": "landing", "label": "move to archive/ or invalid/", "fromSide": "left", "toSide": "bottom" },
+    { "id": "launch", "from": "workflow", "to": "dataflow", "label": "launch · poll", "variant": "emphasis" },
+    { "id": "register", "from": "workflow", "to": "audit", "label": "register · finalize", "fromSide": "left", "toSide": "top" },
+    { "id": "image", "from": "ar", "to": "dataflow", "label": "image" },
+    { "id": "load", "from": "dataflow", "to": "raw", "label": "load", "variant": "emphasis" },
+    { "id": "audit-rows", "from": "dataflow", "to": "audit", "label": "checks · MERGE" },
+    { "id": "error-event", "from": "workflow", "to": "errtopic", "label": "on failure", "variant": "dashed" },
+    { "id": "pull", "from": "errtopic", "to": "dfagent", "label": "pull", "variant": "dashed" },
+    { "id": "prompts", "from": "dfagent", "to": "ollama", "label": "prompts" },
+    { "id": "agent-bq", "from": "dfagent", "to": "audit", "label": "read · record", "fromSide": "bottom", "toSide": "right" },
+    { "id": "retry", "from": "dfagent", "to": "landing", "label": "RETRY_FILE copy (create-only)", "variant": "security", "fromSide": "top", "toSide": "top" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Per-file orchestration", "items": [
+      "Workflow steps: claim, register, acquire slot, launch, poll, release, finalize",
+      "Claims and slot locks are create-only GCS objects (ifGenerationMatch=0)",
+      "Failed or rejected jobs publish one self-contained event to dfa-ingest-errors"
+    ] },
+    { "dot": "emerald", "title": "Dataflow pipeline", "items": [
+      "Contract match, file name, header, delimiter, trailer and data-type checks",
+      "Loads only when every ERROR check passes, then reconciles row counts",
+      "Every check goes to validation_metadata; the final status MERGE goes to job_metadata"
+    ] },
+    { "dot": "rose", "title": "Agent guard rails", "items": [
+      "dfa-agent SA: read-only plus objectCreator on the landing bucket",
+      "The policy engine decides; the LLM can only downgrade AUTO_APPROVED",
+      "Auto-retry only TRANSIENT_INFRA FAILED jobs, under 2 retries per 24 h"
+    ] },
+    { "dot": "slate", "title": "Not drawn", "items": [
+      "The GCP agent's read-only calls to Dataflow, Logging, Workflows, Compute quota and IAM",
+      "Incident reports written to df-agent/actions/<incident_id>/",
+      "dags/ (Airflow) is obsolete and not deployed"
+    ] }
+  ]
+}

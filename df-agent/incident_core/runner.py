@@ -22,6 +22,7 @@ from incident_core.config import load_config
 from incident_core.graph import build_graph, sqlite_checkpointer
 from incident_core.models import NEEDS_HUMAN
 from incident_core.policy import PolicyEngine
+from incident_core.report.writer import detail_file, details_dir
 from incident_core.store import CompositeStore, LocalIncidentStore
 from incident_core.trace import end_trace, start_trace
 
@@ -45,7 +46,7 @@ def run_incident(cfg, pack, store, event: dict, force: bool = False) -> dict:
     incident_id = event["incident_id"]
     graph = build_graph(cfg, pack, store, checkpointer=sqlite_checkpointer(cfg))
     thread = f"{incident_id}:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
-    trace = start_trace(incident_id, str(Path(cfg["actions_dir"]) / incident_id), cfg["logging"].get("save_llm_io", True))
+    trace = start_trace(incident_id, str(details_dir(cfg, incident_id)), cfg["logging"].get("save_llm_io", True))
     log.info("=" * 100)
     log.info("INCIDENT %s | %s | trace: %s", incident_id, event.get("title"), trace.path)
     log.info("=" * 100)
@@ -64,6 +65,7 @@ def run_incident(cfg, pack, store, event: dict, force: bool = False) -> dict:
                  trace.llm_calls, time.monotonic() - started)  # fmt: skip
         if result.get("report_paths"):
             log.info("REPORT %s", result["report_paths"]["report_pdf"])
+            log.info("CHANGE %s", result["report_paths"]["change_md"])
         log.info("-" * 100)
         return result
     finally:
@@ -124,7 +126,7 @@ def cmd_replay(cfg, pack, store, ref: str):
 
 
 def cmd_approve(cfg, pack, store, incident_id: str, assume_yes: bool):
-    path = Path(cfg["actions_dir"]) / incident_id / "state.json"
+    path = detail_file(cfg, incident_id, "state.json")
     if not path.exists():
         sys.exit(f"No incident snapshot at {path}")
     snapshot = json.loads(path.read_text())

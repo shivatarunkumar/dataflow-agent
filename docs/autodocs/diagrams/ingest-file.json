@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Per-file ingestion: dfa-ingest-file execution",
+    "output": "docs/autodocs/diagrams/ingest-file.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+    }
+  },
+  "participants": [
+    {
+      "id": "eventarc",
+      "type": "messagebus",
+      "label": "Eventarc",
+      "sublabel": "dfa-file-landed",
+      "sources": [
+        {
+          "path": "infra/workflows.tf",
+          "line": 33,
+          "end_line": 58
+        }
+      ]
+    },
+    {
+      "id": "workflow",
+      "type": "backend",
+      "label": "Workflow",
+      "sublabel": "dfa-ingest-file",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 11,
+          "end_line": 165,
+          "label": "main"
+        },
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 441,
+          "end_line": 567,
+          "label": "finalize_job"
+        }
+      ]
+    },
+    {
+      "id": "dfbucket",
+      "type": "database",
+      "label": "Dataflow bucket",
+      "sublabel": "claims/ locks/",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 168,
+          "end_line": 200,
+          "label": "claim_delivery"
+        },
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 290,
+          "end_line": 403,
+          "label": "acquire/release slot"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "database",
+      "label": "file_audit",
+      "sublabel": "BigQuery",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 203,
+          "end_line": 287,
+          "label": "register_job"
+        },
+        {
+          "path": "dataflow-job/pipeline/transforms/audit.py",
+          "line": 113,
+          "end_line": 208,
+          "label": "FinalizeJobMetadata"
+        }
+      ]
+    },
+    {
+      "id": "dataflow",
+      "type": "backend",
+      "label": "Dataflow job",
+      "sublabel": "Flex Template",
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/pipeline.py",
+          "line": 90,
+          "end_line": 126
+        },
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 406,
+          "end_line": 438,
+          "label": "wait_for_dataflow"
+        }
+      ]
+    },
+    {
+      "id": "raw",
+      "type": "database",
+      "label": "raw.<entity>",
+      "sublabel": "BigQuery",
+      "sources": [
+        {
+          "path": "dataflow-job/pipeline/transforms/load.py",
+          "line": 19,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "id": "landing",
+      "type": "cloud",
+      "label": "Landing bucket",
+      "sublabel": "GCS",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 483,
+          "end_line": 523,
+          "label": "move_file"
+        }
+      ]
+    },
+    {
+      "id": "errtopic",
+      "type": "messagebus",
+      "label": "dfa-ingest-errors",
+      "sublabel": "Pub/Sub",
+      "sources": [
+        {
+          "path": "workflows/ingest_file.yaml",
+          "line": 570,
+          "end_line": 727,
+          "label": "publish_failure"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 452,
+      "label": "Claim and register"
+    },
+    {
+      "from": 457,
+      "to": 710,
+      "label": "Slot, launch and wait"
+    },
+    {
+      "from": 715,
+      "to": 970,
+      "label": "Finalize"
+    }
+  ],
+  "messages": [
+    {
+      "id": "cloud-event",
+      "from": "eventarc",
+      "to": "workflow",
+      "y": 170,
+      "label": "CloudEvent",
+      "variant": "emphasis",
+      "note": "Skips other event types and objects outside landing/"
+    },
+    {
+      "id": "claim",
+      "from": "workflow",
+      "to": "dfbucket",
+      "y": 225,
+      "label": "create claim (gen match 0)",
+      "note": "HTTP 412 means a duplicate delivery: stop and write nothing"
+    },
+    {
+      "id": "claimed",
+      "from": "dfbucket",
+      "to": "workflow",
+      "y": 295,
+      "label": "claimed",
+      "variant": "return"
+    },
+    {
+      "id": "prior",
+      "from": "workflow",
+      "to": "audit",
+      "y": 325,
+      "label": "count prior attempts"
+    },
+    {
+      "id": "prior-rows",
+      "from": "audit",
+      "to": "workflow",
+      "y": 353,
+      "label": "attempts, successes",
+      "variant": "return"
+    },
+    {
+      "id": "register",
+      "from": "workflow",
+      "to": "audit",
+      "y": 383,
+      "label": "INSERT IN_PROGRESS",
+      "variant": "emphasis",
+      "note": "Already SUCCESS: insert DUPLICATE_SKIPPED and stop"
+    },
+    {
+      "id": "lock",
+      "from": "workflow",
+      "to": "dfbucket",
+      "y": 465,
+      "label": "create slot lock",
+      "note": "All slots busy: sleep 60 s; locks older than 2 h are cleared"
+    },
+    {
+      "id": "launch",
+      "from": "workflow",
+      "to": "dataflow",
+      "y": 525,
+      "label": "flexTemplates.launch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "load",
+      "from": "dataflow",
+      "to": "raw",
+      "y": 555,
+      "label": "FILE_LOADS append",
+      "variant": "emphasis",
+      "note": "Only when every pre-load check passed"
+    },
+    {
+      "id": "audit-write",
+      "from": "dataflow",
+      "to": "audit",
+      "y": 605,
+      "label": "checks + MERGE status"
+    },
+    {
+      "id": "poll",
+      "from": "workflow",
+      "to": "dataflow",
+      "y": 635,
+      "label": "jobs.get every 60 s",
+      "note": "Up to 60 polls, then POLL_TIMEOUT"
+    },
+    {
+      "id": "state",
+      "from": "dataflow",
+      "to": "workflow",
+      "y": 690,
+      "label": "terminal state",
+      "variant": "return"
+    },
+    {
+      "id": "unlock",
+      "from": "workflow",
+      "to": "dfbucket",
+      "y": 735,
+      "label": "delete slot lock"
+    },
+    {
+      "id": "status",
+      "from": "workflow",
+      "to": "audit",
+      "y": 765,
+      "label": "read status",
+      "note": "Sets FAILED if not JOB_STATE_DONE or still IN_PROGRESS"
+    },
+    {
+      "id": "move",
+      "from": "workflow",
+      "to": "landing",
+      "y": 825,
+      "label": "copy to archive/ or invalid/",
+      "note": "Then deletes the original (generation match)"
+    },
+    {
+      "id": "final-path",
+      "from": "workflow",
+      "to": "audit",
+      "y": 895,
+      "label": "UPDATE final_file_path"
+    },
+    {
+      "id": "publish",
+      "from": "workflow",
+      "to": "errtopic",
+      "y": 925,
+      "label": "publish error event",
+      "variant": "dashed",
+      "note": "Only for FAILED or REJECTED"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "workflow",
+      "from": 170,
+      "to": 955,
+      "type": "backend"
+    },
+    {
+      "participant": "dataflow",
+      "from": 525,
+      "to": 695,
+      "type": "backend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Exactly one job per generation",
+      "items": [
+        "The claim object makes duplicate Pub/Sub deliveries exit before any BigQuery write",
+        "A file generation that already loaded successfully is recorded as DUPLICATE_SKIPPED"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Concurrency",
+      "items": [
+        "DFA_MAX_CONCURRENT_JOBS slots (default 1) because of the IN_USE_ADDRESSES quota",
+        "The lock is always released, even after a launch or poll error"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Failure outcome",
+      "items": [
+        "A FAILED status raises an error so the workflow execution itself fails",
+        "A failed publish is logged and does not change the job outcome"
+      ]
+    }
+  ]
+}

@@ -2,7 +2,8 @@
 **Category:** CONFIG · **Status:** FAILED
 
 ## How to confirm
-- `get_workflow_execution`: launch error mentioning `templates/gcs_to_bq.json`, or the image.
+- `get_airflow_task_log` on `run_dataflow`: launch error mentioning `templates/gcs_to_bq.json`, or the image.
+- `find_dataflow_job`: no Dataflow job was created.
 - `get_gcs_object` on the template path: does it exist?
 
 ## Action

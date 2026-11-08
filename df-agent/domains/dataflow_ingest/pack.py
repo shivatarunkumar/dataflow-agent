@@ -6,12 +6,44 @@ from incident_core.domain import DomainPack, Gatherer
 from incident_core.store import BigQueryIncidentStore
 
 from domains.dataflow_ingest import event as event_mod
+from domains.dataflow_ingest.change import build_change_request
 from domains.dataflow_ingest.clients import GcpClients
 from domains.dataflow_ingest.executor import retry_file
 from domains.dataflow_ingest.tools_audit import build_audit_tools, default_audit_calls
-from domains.dataflow_ingest.tools_gcp import build_gcp_tools, default_gcp_calls
+from domains.dataflow_ingest.tools_gcp import DATAFLOW_TASK_ID, airflow_failed_task, build_gcp_tools, default_gcp_calls
+from incident_core.errors import describe
 
 REPO_ROOT = Path(__file__).resolve().parents[3]  # dataflow-agent/
+
+
+def _latest(evidence: list, kind: str) -> dict:
+    """data of the newest evidence item of this kind ({} if none or not a dict)."""
+    for e in reversed(evidence):
+        if e["kind"] == kind and isinstance(e.get("data"), dict):
+            return e["data"]
+    return {}
+
+
+def failing_layer(event: dict, evidence: list) -> str:
+    """Where the failure happened, top-down (project.md section 15): AIRFLOW | DATAFLOW | PIPELINE | DATA | UNKNOWN."""
+    if event["status"] == "REJECTED":
+        return "DATA"
+    if event["status"] != "FAILED":
+        return "UNKNOWN"
+    tasks = _latest(evidence, "get_airflow_task_instances")
+    failed_task = airflow_failed_task(event) or next(iter(tasks.get("failed") or []), "")
+    found = _latest(evidence, "find_dataflow_job")
+    state = (_latest(evidence, "get_dataflow_job").get("state") or found.get("state") or event["dataflow"].get("state") or "")
+    has_job = bool(event["dataflow"].get("job_id") or found.get("exists"))
+    if failed_task and failed_task not in (DATAFLOW_TASK_ID, "finalize"):
+        return "AIRFLOW"
+    if not has_job and (failed_task == DATAFLOW_TASK_ID or found.get("exists") is False):
+        return "AIRFLOW"
+    if state in ("JOB_STATE_FAILED", "JOB_STATE_CANCELLED"):
+        return "DATAFLOW"
+    if state == "JOB_STATE_DONE":
+        return "PIPELINE"
+    return "UNKNOWN"
 
 
 def _object_name(gs_path: str, bucket: str):
@@ -60,7 +92,8 @@ class DataflowIngestPack(DomainPack):
         failed = [{"check_name": c["check_name"], "check_type": c["check_type"], "summary": c["summary"],
                    "failed_rules": ",".join(c.get("failed_checks") or []), "details_json": c.get("details")}
                   for c in checks if c["validation_result"] == "FAIL"]  # fmt: skip
-        payload = event_mod.payload_from_audit(job, failed, self.gcp["project"], self.gcp["region"], self.gcp["workflow"])
+        payload = event_mod.payload_from_audit(job, failed, self.gcp["project"], self.gcp["region"],
+                                               self.gcp.get("composer_env") or "")  # fmt: skip
         return self.parse_event(payload, {})
 
     def incident_check(self, event: dict) -> tuple:
@@ -96,8 +129,8 @@ class DataflowIngestPack(DomainPack):
                      "You investigate the pipeline's audit tables (job_metadata, validation_metadata, agent_incidents).",
                      self._audit_tools, default_audit_calls),
             Gatherer("gcp_agent", "gcp",
-                     "You investigate Google Cloud: Dataflow job state/errors, Cloud Logging, the workflow execution, "
-                     "GCS objects and regional quotas.",
+                     "You investigate top-down: the Airflow DAG run and its failed task's log first, then the Dataflow "
+                     "job state/errors, Cloud Logging, GCS objects and regional quotas.",
                      self._gcp_tools, default_gcp_calls),
         ]  # fmt: skip
 
@@ -203,10 +236,20 @@ class DataflowIngestPack(DomainPack):
             ("Validation / recon", f"{job.get('validation_status')} / {job.get('recon_status')}"),
             ("Error code", job.get("error_code")), ("Error message", (job.get("error_message") or "")[:300]),
             ("Dataflow job", f"{dataflow.get('job_id') or '-'} ({dataflow.get('state') or '-'})"),
-            ("Workflow execution", event["orchestration"].get("execution_id")),
+            ("Failing layer", failing_layer(event, state.get("evidence", []))),
         ]  # fmt: skip
+        orchestration = event["orchestration"]
+        if orchestration.get("type") == "airflow":
+            facts.append(("Airflow DAG run", f"{orchestration.get('dag_id')} / {orchestration.get('dag_run_id')}"))
+        else:
+            facts.append(("Workflow execution", orchestration.get("execution_id")))
+        task_times = [(t.get("start_date"), f"Airflow task {t.get('task_id')} started")
+                      for t in orchestration.get("tasks") or []]  # fmt: skip
+        task_times += [(t.get("end_date"), f"Airflow task {t.get('task_id')} ended: {t.get('state')}")
+                       for t in orchestration.get("tasks") or []]  # fmt: skip
         timeline = [(t, what) for t, what in [
-            (job.get("start_time"), "job registered by the workflow"),
+            (job.get("start_time"), "job registered"),
+            *task_times,
             *[(m.get("time"), f"Dataflow error: {m.get('text', '')[:150]}") for m in dataflow.get("error_messages") or []],
             (job.get("end_time"), f"job finished: {job.get('status')}"),
         ] if t]  # fmt: skip
@@ -215,7 +258,51 @@ class DataflowIngestPack(DomainPack):
         links["validation_metadata SQL"] = (f"SELECT * FROM `{project}.{dataset}.validation_metadata` "
                                             f"WHERE job_id = '{event['incident_id']}'")  # fmt: skip
         return {"facts": facts, "timeline": sorted(timeline, key=lambda x: str(x[0])), "failed_checks": event["failed_checks"],
-                "links": links}  # fmt: skip
+                "links": links, "path": self.investigation_path(state)}  # fmt: skip
+
+    def change_request(self, state: dict) -> dict:
+        """ServiceNow CR draft (change.md); see domains/dataflow_ingest/change.py and df-agent.md §21."""
+        remediation = self.remediation_context(state) if state.get("root_cause") else {}
+        return build_change_request(self.cfg, state, self.investigation_path(state),
+                                    failing_layer(state["event"], state.get("evidence", [])), remediation)  # fmt: skip
+
+    def investigation_path(self, state: dict) -> list:
+        """[(layer, finding)] from the Airflow DAG run down to the error and the audit record (project.md section 15)."""
+        event, evidence = state["event"], state.get("evidence", [])
+        rc = state.get("root_cause") or {}
+        orchestration, dataflow, job = event["orchestration"], event["dataflow"], event["job"]
+        path = []
+        if orchestration.get("type") == "airflow":
+            run = _latest(evidence, "get_airflow_dag_run")
+            path.append(("Airflow DAG run", f"{orchestration.get('dag_id')} / {orchestration.get('dag_run_id')}: "
+                                            f"{run.get('state') or 'state not read'}"))  # fmt: skip
+            tasks = (_latest(evidence, "get_airflow_task_instances").get("tasks") or orchestration.get("tasks") or [])
+            failed_task = airflow_failed_task(event)
+            task = next((t for t in tasks if t.get("task_id") == failed_task), None)
+            if failed_task:
+                detail = (f"{failed_task} {task.get('state')} (try {task.get('try_number')}, {task.get('duration') or '?'} s)"
+                          if task else f"{failed_task} (state not read)")  # fmt: skip
+                path.append(("Airflow task", detail))
+                log = _latest(evidence, "get_airflow_task_log")
+                if log.get("text"):
+                    last = next((ln.strip() for ln in reversed(log["text"].splitlines()) if ln.strip()), "")
+                    path.append(("Airflow task log", last[:200]))
+        found = _latest(evidence, "find_dataflow_job")
+        dataflow_id = dataflow.get("job_id") or found.get("id")
+        if dataflow_id:
+            df_state = _latest(evidence, "get_dataflow_job").get("state") or found.get("state") or dataflow.get("state")
+            path.append(("Dataflow job", f"{dataflow_id}: {df_state or '-'}"))
+        elif event["status"] == "FAILED":
+            path.append(("Dataflow job", "none created (the failure happened before or during launch)"))
+        if rc.get("failing_step"):
+            path.append(("Dataflow step", rc["failing_step"][:200]))
+        if rc.get("primary_error"):
+            path.append(("Error", describe(rc["primary_error"])[:300]))
+        checks = ", ".join(c.get("check_name") or "?" for c in event["failed_checks"])
+        path.append(("BigQuery audit", f"job_metadata {job.get('status') or event['status']} "
+                                       f"({job.get('error_code') or '-'}){'; failed checks: ' + checks if checks else ''}"))  # fmt: skip
+        path.append(("Failing layer", failing_layer(event, evidence)))
+        return path
 
 
 def create_pack(cfg: dict) -> DataflowIngestPack:

@@ -1,11 +1,11 @@
 # df-agent — Incident-response multi-agent for the ingestion pipeline
 
-> Status: **v2 (evidence-first investigation), see §19.** v1 misdiagnosed a real IAM failure as DATA_QUALITY. v2 makes the root cause come from extracted facts and verification, not from the model's guess.
+> Status: **v3 (Airflow on Composer 3: top-down Airflow → Dataflow → BigQuery investigation), see §20.** v2 (evidence-first investigation): §19. v1 misdiagnosed a real IAM failure as DATA_QUALITY. v2 makes the root cause come from extracted facts and verification, not from the model's guess.
 
 ## 1. Goal
 Every failed or rejected ingestion job publishes an error event to Pub/Sub topic `dfa-ingest-errors` (see `project.md` §7a). `df-agent` treats each event as an **incident**, the way an on-call engineer would:
 
-1. **Gathers evidence:** audit tables, Dataflow job, Cloud Logging, workflow execution, GCS state, quotas.
+1. **Gathers evidence**, top-down: the Airflow DAG run and its failed task's log, then the Dataflow job, Cloud Logging, audit tables, GCS state, quotas.
 2. **Finds the root cause** and classifies it.
 3. **Decides what to do.**
    - **Auto-act** only when the cause is a simple transient failure: retry the file, at most 2 times.
@@ -31,7 +31,7 @@ Your six roles, mapped onto a LangGraph workflow, plus two small code-only nodes
 |---|---|---|---|
 | **Incident commander** | the graph itself (code) | Routes between agents, enforces loop limits, tracks state. Being code rather than an LLM makes the flow predictable. | — |
 | **Audit agent** | LLM + tools | Pulls and summarises what the audit tables say about the job | `get_job(job_id)`, `get_validation_results(job_id)`, `get_file_history(file_name)` (all attempts/generations), `get_recent_failures(contract, hours)`, `get_agent_history(file_name)` (past incidents/retries) |
-| **GCP agent** | LLM + tools | Pulls and summarises platform evidence | `get_dataflow_job(id)`, `get_dataflow_errors(id)`, `get_logs(preset, ids, window)` with presets `dataflow_job`, `dataflow_launcher`, `workflow_execution`; `get_workflow_execution(id)`, `get_gcs_object(path)`, `get_quota(region, metric)` |
+| **GCP agent** | LLM + tools | Pulls and summarises platform evidence | `get_airflow_dag_run`, `get_airflow_task_instances`, `get_airflow_task_log` (§20), `find_dataflow_job`, `get_dataflow_job(id)`, `get_dataflow_errors(id)`, `get_logs(preset, id)` with presets `dataflow_errors`, `dataflow_job`, `dataflow_job_all`; `get_gcs_object(path)`, `get_quota(metric)`, `list_active_ingest_jobs`, `check_permission` |
 | **Investigator** | LLM (structured output) | Decides the root cause from all evidence and the brain runbooks. Can ask the gatherers for more evidence (max 2 loops). | none (reasons over evidence) |
 | **Action agent** (planner) | LLM (structured output) | Drafts the action plan using the playbook for that root-cause category. Can read repo files to draft a code patch. | `read_repo_file(path)`, `list_repo(dir)` (read-only, inside the repo only) |
 | **Code-review agent** | LLM + check | Runs only when a patch is proposed. Checks it applies (`git apply --check` in a temp copy), is minimal, and doesn't touch infra/delete logic. Says which tests are impacted. | `git_apply_check(patch)`, `read_repo_file` |
@@ -385,3 +385,182 @@ The report can then say *"dfa-dataflow@… has roles [dataflow.worker, bigquery.
 **Evaluation harness (measure, don't guess).** `make agent-eval-add INCIDENT=<id> EXPECTED=<CATEGORY>` saves a real incident's event + evidence to `df-agent/evals/cases/`. `make agent-eval` replays every case through log analyst + investigator with the configured model, then prints accuracy and a confusion table. Use it to compare llama3.2 against Claude and to keep fixes from regressing.
 
 **Pipeline side:** `publish_failure` now keeps the **tail** of each Dataflow error message (the exception), not the head.
+
+## 20. v3: Airflow (Cloud Composer 3) and top-down investigation
+The pipeline's orchestrator changed from Cloud Workflows to **Airflow on Composer 3** (`project.md` §§1–3, 15). The agent now
+investigates the way an on-call engineer would: **Airflow DAG run → failed task → its log → Dataflow job → failing step
+→ error → BigQuery audit row**.
+
+**Event schema v2.** `orchestration` now holds `type: airflow`, `environment`, `dag_id`, `dag_run_id`, `tasks[]` (state, try,
+duration), `failed_task` and `task_error` (tail of that task's log). `task_error` is part of the event's failure-signal text.
+If the run failed before `register_job` wrote a row, the incident id falls back to the `dag_run_id`. v1 (Workflows) events
+still parse, for replays of old incidents.
+
+**Tools** (`domains/dataflow_ingest/tools_gcp.py`). Airflow is read through the Airflow REST API v1 of the Composer environment
+(`clients.AirflowApi`: the URL comes from the Composer API; requests carry the impersonated `dfa-agent` token; **only GET is
+implemented**). `dfa-agent` has `roles/composer.user`, and Composer registers it in Airflow as **Viewer**
+(`webserver-rbac_user_registration_role`), so it cannot trigger, clear or delete runs even if the code tried.
+
+| Tool | Signal? | Notes |
+|---|---|---|
+| `get_airflow_dag_run(dag_run_id)` | context | state, times, conf |
+| `get_airflow_task_instances(dag_run_id)` | context | every task's state/try/duration/queued time; `failed` list |
+| `get_airflow_task_log(dag_run_id, task_id, try_number=0)` | **signal** | latest try by default; head + tail kept |
+| `find_dataflow_job(audit_job_id)` | context | finds `ingest-<job_id>`, or confirms the launch never created a job |
+
+Removed: `get_workflow_execution` and the `workflow_execution` log preset (the agent SA no longer has `workflows.viewer`).
+
+**Default calls** (FAILED): DAG run → task instances → failed task's log (replays without `failed_task` read `run_dataflow`)
+→ `find_dataflow_job` when the event has no Dataflow id → Dataflow job, errors, step logs → GCS object → quotas, active jobs.
+
+**Failing layer** (`pack.failing_layer`, deterministic): `AIRFLOW` (a task other than `run_dataflow`/`finalize` failed, or
+`run_dataflow` failed and no Dataflow job exists), `DATAFLOW` (job FAILED/CANCELLED), `PIPELINE` (job DONE but status
+FAILED, i.e. reconciliation), `DATA` (REJECTED). It is shown in the report facts and at the end of the new **Investigation
+path** table (`report_sections()["path"]`).
+
+**Signatures and runbooks.** New: `dataflow_launch_rejected` (CONFIG 0.88, runbook `DATAFLOW_LAUNCH_FAILED`),
+`airflow_zombie` (TRANSIENT_INFRA 0.85), `airflow_task_timeout` (TRANSIENT_INFRA 0.65: below the 0.7 auto-retry bar on
+purpose), `airflow_dag_code_error` (CODE_BUG 0.8, a frame in `dags/…py`); runbook `AIRFLOW_TASK_FAILED`. The error digest
+also reads the HTTP code from googleapiclient's `<HttpError 400 when requesting …>`.
+
+**Not changed:** retries are still the create-only copy `invalid/` → `landing/` (a new generation means a new DAG run). The
+agent never uses Airflow's own clear/trigger.
+
+**Tests:** `tests/test_airflow.py`: v2 parsing, top-down call order, replay of a `composer` job, the new signatures, failing
+layer rules, and two graph scenarios (launch rejected → CONFIG at the AIRFLOW layer; Latin-1 crash → CODE_BUG at the
+DATAFLOW layer, traced through `run_dataflow`).
+
+## 21. Incident folder layout and the ServiceNow change request (`change.md`)
+**Layout.** The incident folder holds only what a person opens. Everything machine-readable or supporting moves to `details/`:
+```
+actions/<incident_id>/
+  report.pdf                 the incident report (for people)
+  change.md                  ServiceNow Change Request, ready to copy field by field (or "no change needed" + why)
+  details/
+    report.md                source of report.pdf
+    change_request.json      the same CR as a ServiceNow Table API payload (POST /api/now/table/change_request)
+    evidence.json  state.json  review.md  trace.jsonl  trace.md  proposed.patch (if any)
+    llm/                     LLM prompts and responses
+    history/                 trace.jsonl / llm/ of earlier runs (replays), timestamped
+```
+`make agent-approve` and `make agent-eval-add` read `details/` (and fall back to the old flat layout for older incidents).
+
+**When a CR is needed.** A change request is drafted when the plan contains a change a human must make to the service:
+| Plan contains | CR? | Type |
+|---|---|---|
+| `PROPOSE_CODE_CHANGE` | yes | **Normal** (Emergency if SEV1) |
+| `PROPOSE_CONFIG_CHANGE` (IAM, template, quota, Terraform) | yes | **Normal** (Emergency if SEV1) |
+| `RETRY_FILE` waiting for a human only | yes | **Standard** ("re-run ingestion file", pre-approved, create-only copy) |
+| `RETRY_FILE` already executed automatically | no | the policy allowed it; it's recorded in the report and `agent_incidents` |
+| `PROPOSE_DATA_FIX` only (REJECTED file) | no | the data owner fixes and re-uploads the file; nothing in the service changes |
+| `ESCALATE` / `REPORT_ONLY` / not an incident | no | raise a CR after the investigation finds a change |
+
+When no CR is needed, `change.md` says so, with the reason and what to do instead.
+
+**What `change.md` covers** (the standard ServiceNow change form plus what CAB reviewers ask for):
+| Section | Content (derived from the incident, never invented) |
+|---|---|
+| Summary fields | Short description, Type, Category, Service, Configuration item(s), Risk, Impact, Urgency, Priority (ServiceNow impact × urgency matrix), Assignment group, Requested by, Environment, Related incident, State = New |
+| Fields you fill | Number, INC number, Assigned to, Planned start/end (with the estimated duration), CAB date |
+| Description | What failed, where (failing layer, Airflow run, Dataflow job), impact (file, contract, target table, rows) |
+| Justification | Root cause, confidence, how it was determined (signature/verification), evidence ids, what happens without the change |
+| Implementation plan | Numbered steps: pre-checks, the fix (the action's own remediation steps, the patch in `details/`), deploy (`make docker` / `make dags-deploy` / `make gcs-setup`), retry the failed file, verify |
+| Risk and impact analysis | Risk level and why, blast radius (which contract/files/table), data impact, downtime (none expected), dependencies (Composer up, quota) |
+| Test plan | Unit tests to run, Terraform plan review, end-to-end retry, BigQuery verification SQL |
+| Backout plan | Per change type: redeploy the previous image / revert the DAG / revert the Terraform change; a retry has no service backout (rows can be removed by `_job_id` by the data owner) |
+| Post-implementation verification | SQL on `job_metadata` / `validation_metadata`, the Airflow run to check |
+| Communication plan | Who to tell before and after (data owner of the contract, ops) |
+| Approvals | Standard: pre-approved model; Normal: change manager + CAB; Emergency: ECAB, with a retrospective review |
+| Closure | Close codes and a close-notes template |
+
+**Rules for the drafted values.** Type, risk, impact, urgency and priority are computed from the severity, the action types,
+the code-review risk and the confidence (deterministic, `pack.change_request()`). Risk: **High** if the code review says
+HIGH or a code change rests on confidence < 0.7; **Moderate** for code changes and IAM changes; **Low** for other config
+changes and retries. Organisation values (assignment group, requested by, service name, environment) come from the
+`change:` section of `config.yaml`. The CR is a **draft**: the agent never creates records in ServiceNow.
+
+**Code:** `incident_core/report/change.py` + `change.md.j2` (generic rendering and the ServiceNow payload),
+`DomainPack.change_request(state)` (pipeline-specific content; default: no CR), `domains/dataflow_ingest/change.py`.
+Tests: `tests/test_change.py`.
+
+## 22. v4 report: an actionable runbook per incident (design only, deferred 2026-11-03)
+Target: the sample `incident-94ae5219-rca-report.pdf`. The report answers, page by page: *what broke and what do I run
+first → why should I trust the diagnosis → which branch am I on → exactly what to do → how to recover and know it
+worked → what to change afterwards → where's the proof*. A new layout alone won't get there: incident 94ae5219 was
+diagnosed CODE_BUG (0.55, "fix dataflow-job/") although the error was `404 Unable to open template file`. So v4 has
+three parts, done in this order.
+
+### 22.1 Diagnosis fixes (evidence and classification)
+| # | Fix | Where |
+|---|---|---|
+| 1 | New signature **`template_unavailable`** (CONFIG 0.92): `Unable to open template file`, `404 … flexTemplates:launch`, `Unable to (find\|read) template`. Replaces `template_missing`. | `signatures.yaml` |
+| 2 | New signature **`dataflow_launch_failed`** (CONFIG 0.7, `when: dataflow_state NOT_STARTED`): any `flexTemplates:launch` error. If no job exists, a launch problem outranks the generic traceback (0.55) and loads the launch runbook, never `DATAFLOW_JOB_FAILED`. | `signatures.yaml` |
+| 3 | **Playbook checks run automatically.** Each playbook (22.2) lists read-only checks. When its signature matches, the log analyst runs them, like the IAM verification today. Results decide the branch, and they feed confidence. | `log_analyst`, `pack.verification_calls` |
+| 4 | **Two layers:** `failed_in` (where it broke: AIRFLOW / DATAFLOW_LAUNCH / DATAFLOW / PIPELINE / DATA) and `reported_by` (e.g. Airflow task `run_dataflow`). | `pack.failing_layer` |
+| 5 | **Confidence is explained:** "confirmed by gcp-3 (404) and gcp-8 (template missing)". Unconfirmed claims name the check that would settle them. | `pack.report_model` |
+| 6 | **Merge duplicate errors:** the same message in two wrappers counts as one error. The digest groups by kind + normalised message. | `incident_core/errors.py` |
+| 7 | **Useful log lines:** skip Airflow's `::group::` / `::endgroup::` and INFO noise. Quote the first ERROR line and its context, not the last line. | `tools_gcp._key_lines` |
+| 8 | **Code review only when code is proposed.** No "INSUFFICIENT" section otherwise. | report |
+| 9 | **LLM health check at start-up** (`listen`/`once`/`replay`): a failed Ollama ping is logged loudly once. The report gets one "Agent health" panel instead of 8 failed-call notes. | `runner`, report |
+| 10 | **Pipeline side:** `finalize` reads the failed task's log with Airflow's own log reader (Composer 3 doesn't keep it at the bucket path), so the event's `task_error` is filled. A new last task `fail_if_ingestion_failed` marks the run failed, so `finalize` itself no longer fails by design. | `dags/` |
+
+**New read-only tools** (all GET/list; IAM unchanged except where noted):
+| Tool | Settles |
+|---|---|
+| `list_gcs_prefix(uri)` | similar files / wrong folder (pipeline buckets only) |
+| `get_bucket_config(bucket)` | lifecycle rules, versioning, soft delete, retention |
+| `check_bucket_access(bucket, member)` | whether a pipeline SA can read objects (bucket + project IAM, via `iam.securityReviewer`, already granted) |
+| `get_rendered_task_config(dag_run_id, task_id)` | the template path, image, SA and parameters the run **actually** used (Airflow `rendered_fields`) |
+| `get_airflow_task_log` for **every** failed task | e.g. why `finalize` failed (context, not signal, unless it's the first failure) |
+| `get_recent_changes(hours)` | Admin Activity audit logs before the failure: IAM policy changes, bucket/object deletes, Composer/DAG updates, image pushes |
+| `get_data_contract(contract)` | target table, load mode, columns (`dataflow-job/contracts/*.yaml`) + owner/consumers from `config.yaml` |
+| `get_dag_failures(hours)` | other ingestion runs failing the same way (blast radius) |
+
+### 22.2 Fix playbooks (`brain/playbooks/<signature>.yaml`)
+Structured, reviewable, one per known failure (fallback: one per category). Commands and facts come from templates and
+evidence. An LLM may phrase summaries, but it never writes commands.
+```yaml
+id: template_unavailable
+headline: "Dataflow couldn't open its template file, so {job_name} never started."
+explain: "A Flex Template launch starts by reading a JSON spec in GCS that points to the container image. ..."
+do_first: {text: "Check whether the template exists. The result decides the fix.", check: template_exists}
+checks:                       # run automatically (22.1 #3); shown with their result
+  template_exists: {tool: get_gcs_object, args: {path: "{template_path}"}}
+  template_folder: {tool: list_gcs_prefix, args: {uri: "{template_dir}"}}
+  bucket_config:   {tool: get_bucket_config, args: {bucket: "{dataflow_bucket}"}}
+  rendered:        {tool: get_rendered_task_config, args: {dag_run_id: "{dag_run_id}", task_id: run_dataflow}}
+branches:                     # "Find the cause"; the branch whose `when` matches the check results is highlighted
+  - {id: missing, when: {template_exists.exists: false, template_folder.similar: false}, title: "Not found, no similar file", fix: A}
+  - {id: access,  when: {template_exists.exists: true}, title: "File exists: the pipeline SA may not be able to read it", fix: B}
+  - {id: path,    when: {template_exists.exists: false, template_folder.similar: true}, title: "A similar file exists: wrong path", fix: C}
+fixes:                        # steps with commands; unknown values stay as amber <PLACEHOLDER>, never guessed
+  A: {title: "Restore or rebuild the template", steps: [...]}
+  B: {...}
+  C: {...}
+reprocess: {...}              # duplicate risk from rows_loaded, steps, done_when, if_fails_again
+follow_ups: [...]             # "Stop it recurring"
+```
+First set: `template_unavailable`, `dataflow_launch_failed`, `permission_denied`, `quota_exceeded`, `encoding_error`,
+`bq_schema_mismatch`, `bq_not_found`, `airflow_zombie`, `airflow_task_timeout`, `airflow_dag_code_error`,
+`recon_mismatch`, `rejected` (one for all data-quality checks, with check-specific text), and `unknown`.
+
+### 22.3 Report v4 (HTML → PDF)
+- **One data object:** `pack.report_model(state)` → `details/incident.json` (facts, timeline, claims with evidence ids,
+  branches with check results, filled fix steps, follow-ups, agent health). Everything is rendered from it. The same
+  JSON can later feed Slack or a web view.
+- **Rendering:** Jinja HTML + CSS → PDF with **headless Chromium (Playwright)**. Landscape 1280×800 px pages, a sidebar
+  with real internal links on every page, Archivo / Source Sans 3 / IBM Plex Mono (OFL; downloaded once by
+  `make agent-fonts`, system fallbacks otherwise). Status colours are the same on every page: green confirmed, red
+  failed, amber unverified or needs input, grey not reached. Commands are hard-wrapped with `\` and kept in one block.
+- **Pages (only the relevant ones are rendered):**
+  1. **Now:** plain-language headline (never an error code first), failure map with the point where it stopped, "Do this first", impact, how sure we are.
+  2. **Why it failed:** the error block, what it means, diagnosis corrections (e.g. classifier vs evidence), Confirmed / Ruled out / Still unknown with evidence ids.
+  3. **Find the cause:** the playbook's branches, with check results and the matching branch highlighted.
+  4. **Fix pages:** one per remaining branch (merged when only one is left).
+  5. **Reprocess and confirm:** duplicate risk, steps, "Done when" checklist, "If it fails again".
+  6. **Stop it recurring:** follow-ups table, plus the agent health panel kept separate from the production issue.
+  7. **Incident record:** timeline, evidence index, identifiers, links. No full trace (that stays in `details/trace.md`).
+- `details/report.md` keeps the full Markdown version (trace, every evidence item) for audit and diffs. `change.md`
+  (§21) uses the same model (fix steps → implementation plan).
+- **Fallback:** if Chromium isn't installed, the PDF is rendered from `report.md` as today and the run logs a warning.
+  Tests check `incident.json` and the HTML; they never need a browser.

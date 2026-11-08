@@ -16,9 +16,11 @@ from incident_core.agents.investigator import make_investigator_node
 from incident_core.agents.log_analyst import make_log_analyst_node
 from incident_core.brain import Brain
 from incident_core.models import CATEGORIES
+from incident_core.report.writer import detail_file
 
 # Evidence recorded before the signal flag existed: infer it from the tool that produced it.
-_SIGNAL_KINDS = {"get_job", "get_validation_results", "get_dataflow_errors", "get_logs", "get_workflow_execution"}
+_SIGNAL_KINDS = {"get_job", "get_validation_results", "get_dataflow_errors", "get_logs", "get_workflow_execution",
+                 "get_airflow_task_log"}
 
 
 def cases_dir(cfg: dict) -> Path:
@@ -31,9 +33,8 @@ def add_case(cfg: dict, incident_id: str, expected: str, note: str = "") -> Path
     expected = expected.upper()
     if expected not in CATEGORIES + ["NO_INCIDENT"]:
         raise ValueError(f"expected must be one of {CATEGORIES + ['NO_INCIDENT']}")
-    folder = Path(cfg["actions_dir"]) / incident_id
-    state = json.loads((folder / "state.json").read_text())
-    ev = json.loads((folder / "evidence.json").read_text())
+    state = json.loads(detail_file(cfg, incident_id, "state.json").read_text())
+    ev = json.loads(detail_file(cfg, incident_id, "evidence.json").read_text())
     # Only gathered evidence; analysis/verification items are recomputed by the eval.
     ev = [e for e in ev if e["source"] not in ("analysis", "verify") and e["kind"] != "summary"]
     case = {"incident_id": incident_id, "expected_category": expected, "note": note,

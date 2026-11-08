@@ -3,10 +3,11 @@ resource "google_service_account" "dataflow" {
   display_name = "Dataflow worker for GCS to BQ ingestion"
 }
 
-# Identity for the Eventarc trigger and the workflow it starts.
-resource "google_service_account" "workflow" {
-  account_id   = "${var.prefix}-workflow"
-  display_name = "Workflow orchestrating GCS to BQ ingestion"
+# Identity of the Composer environment (Airflow scheduler/workers run the DAGs as this SA).
+# It always exists (it's free), so its IAM survives `make airflow-down` / `airflow-up` cycles.
+resource "google_service_account" "composer" {
+  account_id   = "${var.prefix}-composer"
+  display_name = "Composer (Airflow) orchestrating GCS to BQ ingestion"
 }
 
 locals {
@@ -16,13 +17,12 @@ locals {
     "roles/bigquery.jobUser",
     "roles/artifactregistry.reader",
   ]
-  workflow_roles = [
-    "roles/dataflow.developer",     # launch + poll flex template jobs
-    "roles/bigquery.dataEditor",    # job_metadata DML
-    "roles/bigquery.jobUser",       # run queries
-    "roles/logging.logWriter",      # workflow execution logs
-    "roles/workflows.invoker",      # Eventarc -> workflow
-    "roles/eventarc.eventReceiver", # receive events on the trigger
+  composer_roles = [
+    "roles/composer.worker",     # required for a Composer environment SA
+    "roles/dataflow.developer",  # launch + watch flex template jobs, read job messages
+    "roles/bigquery.dataEditor", # job_metadata DML
+    "roles/bigquery.jobUser",    # run queries
+    "roles/logging.logWriter",   # Airflow task logs
   ]
 }
 
@@ -34,12 +34,12 @@ resource "google_project_iam_member" "dataflow" {
   member  = "serviceAccount:${google_service_account.dataflow.email}"
 }
 
-resource "google_project_iam_member" "workflow" {
-  for_each = toset(local.workflow_roles)
+resource "google_project_iam_member" "composer" {
+  for_each = toset(local.composer_roles)
 
   project = var.project_id
   role    = each.value
-  member  = "serviceAccount:${google_service_account.workflow.email}"
+  member  = "serviceAccount:${google_service_account.composer.email}"
 }
 
 # Both identities read/write the landing and dataflow buckets.
@@ -47,7 +47,7 @@ resource "google_storage_bucket_iam_member" "buckets" {
   for_each = {
     for pair in setproduct(
       ["landing", "dataflow"],
-      [google_service_account.dataflow.email, google_service_account.workflow.email],
+      [google_service_account.dataflow.email, google_service_account.composer.email],
     ) : "${pair[0]}-${pair[1]}" => { bucket = pair[0], email = pair[1] }
   }
 
@@ -56,18 +56,18 @@ resource "google_storage_bucket_iam_member" "buckets" {
   member = "serviceAccount:${each.value.email}"
 }
 
-# The workflow launches Dataflow jobs that run as the dataflow service account.
-resource "google_service_account_iam_member" "workflow_acts_as_dataflow" {
+# Airflow launches Dataflow jobs that run as the dataflow service account.
+resource "google_service_account_iam_member" "composer_acts_as_dataflow" {
   service_account_id = google_service_account.dataflow.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.workflow.email}"
+  member             = "serviceAccount:${google_service_account.composer.email}"
 }
 
-# Pub/Sub's service agent mints OIDC tokens for Eventarc's authenticated push.
-resource "google_project_iam_member" "pubsub_token_creator" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountTokenCreator"
-  member  = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+# Composer 3: the Composer service agent must be able to manage the environment's SA.
+resource "google_service_account_iam_member" "composer_service_agent" {
+  service_account_id = google_service_account.composer.name
+  role               = "roles/composer.ServiceAgentV2Ext"
+  member             = "serviceAccount:service-${data.google_project.this.number}@cloudcomposer-accounts.iam.gserviceaccount.com"
 
   depends_on = [google_project_service.services]
 }

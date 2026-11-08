@@ -2,8 +2,8 @@
 
 Each step is
   - logged to the console:   HH:MM:SS [incident] node            message (1.2s)
-  - appended to actions/<incident>/trace.jsonl (machine-readable, for analysis/improvement)
-  - LLM prompts + responses saved to actions/<incident>/llm/NN_<role>_<purpose>.json (when enabled)
+  - appended to actions/<incident>/details/trace.jsonl (machine-readable, for analysis/improvement)
+  - LLM prompts + responses saved to actions/<incident>/details/llm/NN_<role>_<purpose>.json (when enabled)
 trace.md and the report's "Investigation trace" section are rendered from trace.jsonl.
 
 The runner handles one incident at a time, so a process-wide "current" tracer is used (gatherers run in
@@ -108,14 +108,31 @@ class _NullTracer(Tracer):
 _current: Tracer = _NullTracer()
 
 
+# Files a person opens stay at the top of the incident folder; everything else lives in details/ (df-agent.md §21).
+TOP_LEVEL_FILES = {"report.pdf", "change.md", "details"}
+
+
 def start_trace(incident_id: str, out_dir: str, save_llm_io: bool = True) -> Tracer:
-    """Starts a fresh trace; a previous run's trace.jsonl / llm/ (e.g. before a replay) is kept with a timestamp suffix."""
+    """Starts a fresh trace in out_dir (the incident's details/ folder).
+
+    A previous run's trace.jsonl / llm/ (e.g. before a replay) moves to details/history/ with a timestamp, and so do
+    supporting files left at the top of the incident folder by the older flat layout.
+    """
     global _current
     out = Path(out_dir)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    history = out / "history"
     for old in (out / "trace.jsonl", out / "llm"):
         if old.exists():
-            old.rename(out / f"{old.stem}.{stamp}{old.suffix}")
+            history.mkdir(parents=True, exist_ok=True)
+            old.rename(history / f"{old.stem}.{stamp}{old.suffix}")
+    if out.name == "details" and out.parent.exists():
+        legacy = [p for p in out.parent.iterdir() if p.name not in TOP_LEVEL_FILES and not p.name.startswith(".")]
+        if legacy:
+            target = history / f"flat-layout.{stamp}"
+            target.mkdir(parents=True, exist_ok=True)
+            for item in legacy:
+                item.rename(target / item.name)
     _current = Tracer(incident_id, out_dir, save_llm_io)
     return _current
 

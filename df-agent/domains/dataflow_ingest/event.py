@@ -1,4 +1,8 @@
-"""Error event (schema v1, published by workflows/ingest_file.yaml publish_failure) -> normalized incident event."""
+"""Error event -> normalized incident event.
+
+Schema v2 is published by the Airflow DAG gcs_to_bq_dataflow (finalize / on_ingest_failure, dags/dfa_common/events.py).
+Schema v1 (Cloud Workflows, before 2026-11) is still accepted so old incidents can be replayed.
+"""
 
 import re
 
@@ -14,8 +18,10 @@ def normalize(payload: dict, attributes: dict | None = None) -> dict:
     dataflow = payload.get("dataflow") or {}
     orchestration = payload.get("orchestration") or {}
     checks = payload.get("failed_checks") or []
+    airflow = orchestration.get("type") == "airflow"
 
-    job_id = job.get("job_id") or attributes.get("job_id")
+    # An Airflow failure before register_job finished has no job_id; the DAG run identifies the incident then.
+    job_id = job.get("job_id") or attributes.get("job_id") or (orchestration.get("dag_run_id") if airflow else None)
     if not job_id:
         raise ValueError("event has no job.job_id")
     status = job.get("status") or attributes.get("status")
@@ -24,7 +30,7 @@ def normalize(payload: dict, attributes: dict | None = None) -> dict:
 
     text = "\n".join(filter(None, [
         job.get("status_reason"), job.get("error_message"), dataflow.get("launch_error"), dataflow.get("state"),
-        *error_texts, *[f"{c.get('check_name')}: {c.get('summary')}" for c in checks],
+        orchestration.get("task_error"), *error_texts, *[f"{c.get('check_name')}: {c.get('summary')}" for c in checks],
     ]))  # fmt: skip
 
     return {
@@ -37,14 +43,16 @@ def normalize(payload: dict, attributes: dict | None = None) -> dict:
             "error_code": job.get("error_code"),
             "failed_checks": [c.get("check_name") for c in checks],
             "dataflow_state": dataflow.get("state"),
+            "orchestrator": "airflow" if airflow else "workflows",
+            "failed_task": orchestration.get("failed_task") or "",
         },
         "runbook_hints": [c.get("check_name") for c in checks],
         "text": text,
         "links": {
+            "airflow_dag_run" if airflow else "workflow_execution": orchestration.get("console_url"),
             "dataflow": dataflow.get("console_url"),
-            "workflow_execution": orchestration.get("console_url"),
         },
-        "job": job,
+        "job": {**job, "job_id": job.get("job_id") or ""},
         "file": file,
         "dataflow": dataflow,
         "orchestration": orchestration,
@@ -56,14 +64,23 @@ def normalize(payload: dict, attributes: dict | None = None) -> dict:
 _DATAFLOW_JOB = re.compile(r"Dataflow job (\S*) ended in (\S+?)\.")
 
 
-def payload_from_audit(job_row: dict, failed_checks: list, project: str, region: str, workflow: str) -> dict:
-    """Rebuilds a v1-shaped payload from job_metadata (+ failed validation rows) for replays."""
+def payload_from_audit(job_row: dict, failed_checks: list, project: str, region: str, composer_env: str) -> dict:
+    """Rebuilds an event payload from job_metadata (+ failed validation rows) for replays.
+
+    job_metadata.service_name says who orchestrated the job: 'composer' (service_revision = Airflow dag_run_id) or
+    'workflows' (service_revision = workflow execution id, schema v1).
+    """
     match = _DATAFLOW_JOB.search(job_row.get("error_message") or "")
     dataflow_job_id = match.group(1) if match else ""
     dataflow_state = match.group(2) if match else ("JOB_STATE_DONE" if job_row.get("status") == "REJECTED" else "")
-    execution_id = job_row.get("service_revision") if job_row.get("service_name") == "workflows" else None
+    if job_row.get("service_name") == "composer":
+        schema, orchestration = "2", {"type": "airflow", "environment": composer_env, "dag_id": "gcs_to_bq_dataflow",
+                                      "dag_run_id": job_row.get("service_revision")}  # fmt: skip
+    else:
+        execution_id = job_row.get("service_revision") if job_row.get("service_name") == "workflows" else None
+        schema, orchestration = "1", {"workflow": "dfa-ingest-file", "execution_id": execution_id}
     return {
-        "schema_version": "1",
+        "schema_version": schema,
         "job": {k: job_row.get(k) for k in (
             "job_id", "status", "status_reason", "error_code", "error_message", "job_name", "contract_name",
             "target_table", "rows_in_file", "rows_loaded", "validation_status", "recon_status", "start_time",
@@ -83,5 +100,5 @@ def payload_from_audit(job_row: dict, failed_checks: list, project: str, region:
             "error_messages": [],
             "console_url": f"https://console.cloud.google.com/dataflow/jobs/{region}/{dataflow_job_id}?project={project}" if dataflow_job_id else "",
         },
-        "orchestration": {"workflow": workflow, "execution_id": execution_id},
+        "orchestration": orchestration,
     }

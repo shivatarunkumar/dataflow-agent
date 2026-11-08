@@ -1,4 +1,8 @@
-"""Listens to GCS OBJECT_FINALIZE notifications and triggers one ingestion DAG run per file."""
+"""Pulls GCS OBJECT_FINALIZE notifications and triggers one ingestion DAG run per file generation.
+
+The run_id is derived from the object generation + name, so a redelivered Pub/Sub message maps to the same run_id
+and is skipped by Airflow instead of loading the file twice.
+"""
 
 import json
 from datetime import datetime, timedelta
@@ -8,42 +12,30 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.google.cloud.sensors.pubsub import PubSubPullSensor
 
 from dfa_common import config
+from dfa_common.logic import file_event
 
 
 def to_file_events(pulled_messages, context):
-    """Turns ReceivedMessages into DAG run confs, ignoring non-finalize events and folder markers."""
-    events = []
+    """ReceivedMessages -> one trigger per landed file (same file twice in one pull -> once)."""
+    events = {}
     for received in pulled_messages:
         message = received.message
-        attributes = dict(message.attributes)
-        if attributes.get("eventType") != "OBJECT_FINALIZE":
-            continue
-        obj = json.loads(message.data.decode("utf-8"))
-        name = obj["name"]
-        if name.endswith("/") or not name.startswith(config.LANDING_PREFIX):
-            continue
-        events.append({
-            "bucket": obj["bucket"],
-            "name": name,
-            "generation": str(obj.get("generation")),
-            "size": int(obj.get("size", 0)),
-            "time_created": obj.get("timeCreated"),
-            "message_id": message.message_id,
-            "subscription": config.SUBSCRIPTION,
-            "delivery_attempt": received.delivery_attempt or None,
-        })  # fmt: skip
-    return events
+        event = file_event(json.loads(message.data.decode("utf-8")), dict(message.attributes), message.message_id,
+                           received.delivery_attempt)  # fmt: skip
+        if event:
+            events[event["trigger_run_id"]] = event
+    return list(events.values())
 
 
 with DAG(
-    dag_id="pubsub_file_listener",
+    dag_id=config.LISTENER_DAG_ID,
     description="Pull GCS file notifications from Pub/Sub and trigger ingestion per file.",
     schedule="*/2 * * * *",
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,
     dagrun_timeout=timedelta(minutes=5),
-    default_args={"retries": 1, "retry_delay": timedelta(seconds=30)},
+    default_args={"retries": 2, "retry_delay": timedelta(seconds=20)},
     tags=["ingestion", "pubsub"],
 ) as dag:
     # Messages are acked once pulled; each file then has its own tracked DAG run.
@@ -56,11 +48,12 @@ with DAG(
         messages_callback=to_file_events,
         poke_interval=15,
         timeout=100,
-        soft_fail=True,  # no messages -> skip, not fail
+        soft_fail=True,  # no messages -> skipped, not failed
     )
 
     TriggerDagRunOperator.partial(
         task_id="trigger_ingestion",
         trigger_dag_id=config.INGEST_DAG_ID,
         wait_for_completion=False,
-    ).expand(conf=pull_notifications.output)
+        skip_when_already_exists=True,  # duplicate delivery of the same generation
+    ).expand_kwargs(pull_notifications.output)

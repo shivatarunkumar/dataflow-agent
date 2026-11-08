@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "dataflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.json",
+    "sha256": "7208c609f07de14cd82137616e498182324caeda387b5a0c12665c27121a2cdf",
+    "bytes": 8815
+  },
+  "artifact": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.html",
+    "sha256": "2611e5e94f9ad90ab10c54814e349545a926f06624bc047f56007ca452e73e99",
+    "bytes": 851426
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.finalize.json",
+    "summaryReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.finalize-summary.json",
+    "browserCheckReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/beam-pipeline.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 16119,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

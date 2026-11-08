@@ -9,13 +9,23 @@ TF      := terraform -chdir=infra
 # Dataflow jobs allowed at once. Keep 1 (fits the 4-IP quota); MAX_JOBS=4 deliberately triggers QUOTA_EXCEEDED for agent tests.
 MAX_JOBS ?= 1
 
-TF_VARS := -var project_id=$(PROJECT_ID) -var region=$(REGION) -var prefix=$(PREFIX) \
-           -var max_concurrent_jobs=$(MAX_JOBS) \
-           $(if $(AGENT_OPERATOR),-var agent_operator=user:$(AGENT_OPERATOR),)
+TF_BASE_VARS := -var project_id=$(PROJECT_ID) -var region=$(REGION) -var prefix=$(PREFIX) \
+                -var max_concurrent_jobs=$(MAX_JOBS) \
+                $(if $(AGENT_OPERATOR),-var agent_operator=user:$(AGENT_OPERATOR),)
+# Composer (~$0.80-1.00/hour) keeps its current state unless COMPOSER=true|false is given, so `make gcs-setup`
+# never creates or deletes it by accident. make airflow-up / airflow-down switch it explicitly.
+COMPOSER ?= $(if $(call tf_out,composer_env),true,false)
+TF_VARS  = $(TF_BASE_VARS) -var enable_composer=$(COMPOSER)
+COMPOSER_NAME := $(PREFIX)-composer
+COMPOSER_RUN   = gcloud composer environments run $(COMPOSER_NAME) --location $(REGION) --project $(PROJECT_ID)
 VENV    := .venv
 PYTHON  := $(abspath $(VENV)/bin/python)
 AGENT_VENV   := .venv-agent
 AGENT_PYTHON := $(abspath $(AGENT_VENV)/bin/python)
+
+# Flex template launcher base image, pinned: the 20261006, 20261026 and 20261102 releases have a layer Docker can't
+# unpack ("invalid tar header"), locally and in Cloud Build. Override with BASE_IMAGE=... to try a newer release.
+BASE_IMAGE ?= gcr.io/dataflow-templates-base/python312-template-launcher-base:flex_templates_base_image_release_20260901_RC00
 
 # Values from terraform outputs (resolved lazily, only by targets that need them).
 tf_out          = $(shell $(TF) output -raw $(1) 2>/dev/null)
@@ -24,7 +34,8 @@ DATAFLOW_BUCKET = $(call tf_out,dataflow_bucket)
 TEMPLATE_PATH   = $(call tf_out,template_path)
 IMAGE_URI       = $(call tf_out,image_uri)
 DATAFLOW_SA     = $(call tf_out,dataflow_sa)
-WORKFLOW_NAME   = $(call tf_out,workflow_name)
+DAG_PREFIX      = $(call tf_out,dag_gcs_prefix)
+AIRFLOW_URI     = $(call tf_out,airflow_uri)
 AUDIT_DATASET   = $(call tf_out,audit_dataset)
 TARGET_DATASET  = $(call tf_out,target_dataset)
 TARGET_TABLES   = $(call tf_out,target_tables)
@@ -34,14 +45,15 @@ AGENT_SA        = $(call tf_out,agent_sa)
 # Environment for df-agent (expanded into df-agent/config.yaml).
 AGENT_ENV = DFA_PROJECT_ID=$(PROJECT_ID) DFA_REGION=$(REGION) DFA_LANDING_BUCKET=$(LANDING_BUCKET) \
             DFA_DATAFLOW_BUCKET=$(DATAFLOW_BUCKET) DFA_ERROR_SUBSCRIPTION=$(ERROR_SUB) \
-            DFA_AUDIT_DATASET=$(AUDIT_DATASET) DFA_WORKFLOW_NAME=$(WORKFLOW_NAME) DFA_AGENT_SA=$(AGENT_SA) \
+            DFA_AUDIT_DATASET=$(AUDIT_DATASET) DFA_COMPOSER_ENV=$(COMPOSER_NAME) DFA_AGENT_SA=$(AGENT_SA) \
             DFA_DATAFLOW_SA=$(DATAFLOW_SA)
 
 # FILE=customer_20261015.csv uploads mockdata/<FILE> to manual/ (no Pub/Sub trigger); FILE=gs://... is used as-is.
 FILE_URI = $(if $(filter gs://%,$(FILE)),$(FILE),gs://$(LANDING_BUCKET)/manual/$(notdir $(FILE)))
 
-.PHONY: help venv test mockdata tf-init plan gcs-setup gcs-check gcs-destroy docker template run-dataflow run-local upload-mock executions bq-clean-up errors \
-        agent-venv agent-test agent-listen agent-once agent-replay agent-approve agent-brain-sync agent-eval agent-eval-add agent-graph
+.PHONY: help venv test mockdata tf-init plan gcs-setup gcs-check gcs-destroy docker template run-dataflow run-local upload-mock bq-clean-up errors \
+        airflow-up airflow-down dags-deploy dags-test airflow-ui airflow-runs airflow-admin airflow-test-launch-failure \
+        agent-venv agent-pdf-setup agent-test agent-listen agent-once agent-replay agent-approve agent-brain-sync agent-eval agent-eval-add agent-graph
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -63,7 +75,7 @@ tf-init:
 plan: tf-init ## terraform plan
 	$(TF) plan $(TF_VARS)
 
-gcs-setup: tf-init ## Create all resources (incl. workflow + Eventarc trigger); run `make docker` after
+gcs-setup: tf-init ## Create/update all resources; Composer keeps its current state (see airflow-up); run `make docker` after
 	$(TF) apply -auto-approve $(TF_VARS)
 
 gcs-check: ## Verify every resource exists and is active (exit 1 on any failure)
@@ -72,9 +84,9 @@ gcs-check: ## Verify every resource exists and is active (exit 1 on any failure)
 gcs-destroy: tf-init ## Destroy all resources (buckets/datasets are force-deleted)
 	$(TF) destroy -auto-approve $(TF_VARS)
 
-docker: ## Build the flex template image locally, push it to Artifact Registry, then write the template spec
+docker: ## Build the Flex Template image locally, push it to Artifact Registry, then write the template spec
 	gcloud auth configure-docker $(REGION)-docker.pkg.dev --quiet
-	docker build --platform linux/amd64 -t $(IMAGE_URI) dataflow-job
+	docker build --platform linux/amd64 --build-arg BASE_IMAGE=$(BASE_IMAGE) -t $(IMAGE_URI) dataflow-job
 	docker push $(IMAGE_URI)
 	$(MAKE) template
 
@@ -111,7 +123,7 @@ run-local: ## DirectRunner against real BigQuery: make run-local FILE=mockdata/c
 		--input_file $(if $(filter gs://%,$(FILE)),$(FILE),$(abspath $(FILE))) \
 		--trigger_type MANUAL
 
-upload-mock: ## Drop all mock files into landing/ (triggers Pub/Sub -> Eventarc -> Workflows -> Dataflow)
+upload-mock: ## Drop all mock files into landing/ (triggers Pub/Sub -> Airflow -> Dataflow)
 	gcloud storage cp mockdata/*.csv mockdata/*.xlsx gs://$(LANDING_BUCKET)/landing/
 
 bq-clean-up: ## TRUNCATE audit + target tables (asks to confirm; CONFIRM=yes skips the prompt)
@@ -135,16 +147,50 @@ errors: ## Peek at error events (not acked: they stay on the subscription for th
 	gcloud pubsub subscriptions pull $(ERROR_SUB) --project $(PROJECT_ID) --limit 10 \
 		--format 'json(message.attributes, message.data.decode(base64))'
 
-executions: ## List recent workflow executions (one per landed file)
-	gcloud workflows executions list $(WORKFLOW_NAME) --location $(REGION) --project $(PROJECT_ID) --limit 20 \
-		--format 'table(name.basename():label=EXECUTION, state, startTime, endTime)'
+# --- Airflow (Cloud Composer 3; billed ~$0.80-1.00/hour while it exists) --------------------------------
+
+airflow-up: tf-init ## Create the Composer environment (~25 min, billing starts) and upload the DAGs
+	$(TF) apply -auto-approve $(TF_BASE_VARS) -var enable_composer=true
+	$(MAKE) dags-deploy
+	@echo "Airflow UI: $$($(TF) output -raw airflow_uri)   -- run 'make airflow-down' when you're done."
+
+airflow-down: tf-init ## Delete ONLY the Composer environment (~10 min, billing stops); everything else stays
+	$(TF) apply -auto-approve $(TF_BASE_VARS) -var enable_composer=false
+
+dags-deploy: ## Upload dags/ to the Composer DAG folder (picked up within ~1 min)
+	@test -n "$(DAG_PREFIX)" || { echo "No Composer environment - run 'make airflow-up' first."; exit 1; }
+	gcloud storage rsync dags $(DAG_PREFIX) --recursive --project $(PROJECT_ID) \
+		--exclude '(^|.*/)(tests/.*|__pycache__/.*|.*\.pyc)$$'
+
+dags-test: ## DAG logic + error event unit tests (no Airflow server, no GCP); DAG import test runs only if airflow is installed
+	cd dags && $(PYTHON) -m pytest -q tests
+
+airflow-ui: ## Print the Airflow UI URL
+	@test -n "$(AIRFLOW_URI)" || { echo "No Composer environment - run 'make airflow-up' first."; exit 1; }
+	@echo $(AIRFLOW_URI)
+
+airflow-runs: ## Recent ingestion DAG runs and their states
+	$(COMPOSER_RUN) dags list-runs -- -d gcs_to_bq_dataflow
+
+airflow-test-launch-failure: ## Run one file through Airflow with a missing template (FAILED before Dataflow): make airflow-test-launch-failure FILE=customer_20261015.csv
+	@test -n "$(FILE)" || { echo "Usage: make airflow-test-launch-failure FILE=<mockdata file name>"; exit 1; }
+	gcloud storage cp mockdata/$(notdir $(FILE)) gs://$(LANDING_BUCKET)/manual/$(notdir $(FILE)) --project $(PROJECT_ID)
+	gen=$$(gcloud storage objects describe gs://$(LANDING_BUCKET)/manual/$(notdir $(FILE)) --project $(PROJECT_ID) --format='value(generation)'); \
+	$(COMPOSER_RUN) dags trigger -- gcs_to_bq_dataflow -c "{\"bucket\": \"$(LANDING_BUCKET)\", \"name\": \"manual/$(notdir $(FILE))\", \"generation\": \"$$gen\", \"template_path\": \"gs://$(DATAFLOW_BUCKET)/templates/does_not_exist.json\"}"
+
+airflow-admin: ## Make your account Airflow Admin (sign in to the Airflow UI once first; new users get Viewer)
+	$(COMPOSER_RUN) users add-role -- -e $(AGENT_OPERATOR) -r Admin
 
 # --- df-agent (incident-response agent, see df-agent/df-agent.md) ------------------------------------
 
-agent-venv: ## Create .venv-agent with df-agent dependencies (separate from the Beam venv)
+agent-venv: ## Create .venv-agent with df-agent dependencies (separate from the Beam venv), incl. Chromium for PDF reports
 	python3.12 -m venv $(AGENT_VENV)
 	$(AGENT_VENV)/bin/pip install --upgrade pip
 	$(AGENT_VENV)/bin/pip install -r df-agent/requirements.txt
+	$(MAKE) agent-pdf-setup
+
+agent-pdf-setup: ## Install headless Chromium (~150 MB, once) used to render incident report PDFs
+	$(AGENT_VENV)/bin/playwright install chromium
 
 agent-test: ## df-agent unit + scenario tests (no GCP, no LLM)
 	cd df-agent && $(AGENT_PYTHON) -m pytest -q tests

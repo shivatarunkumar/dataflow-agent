@@ -39,6 +39,18 @@ variable "max_concurrent_jobs" {
   default     = 1
 }
 
+variable "enable_composer" {
+  description = "Create the Cloud Composer 3 environment (~$0.80-1.00/hour while it exists). make airflow-up / airflow-down."
+  type        = bool
+  default     = false
+}
+
+variable "composer_image" {
+  description = "Composer image version (latest build of this Airflow version)."
+  type        = string
+  default     = "composer-3-airflow-2.10.5"
+}
+
 variable "target_tables" {
   description = "Target tables to create; each needs infra/bq/<name>.json."
   type        = list(string)

@@ -9,8 +9,8 @@ RuntimeError: apitools.base.py.exceptions.HttpForbiddenError: HttpError accessin
   "message": "Access Denied: Dataset <project>:raw: Permission bigquery.tables.create denied on dataset <project>:raw"
   "reason": "accessDenied", "status": "PERMISSION_DENIED"
 ```
-Also: `PERMISSION_DENIED` / `403` from GCS (`storage.objects.*`), or from the Dataflow API at launch (in the workflow
-execution error).
+Also: `PERMISSION_DENIED` / `403` from GCS (`storage.objects.*`), or from the Dataflow API at launch (in the Airflow
+`run_dataflow` task log; the principal is then `dfa-composer`, e.g. missing `iam.serviceAccountUser` on `dfa-dataflow`).
 
 ## How to confirm (the agent does this automatically)
 1. The error digest names the **permission** (e.g. `bigquery.tables.create`) and the **resource** (e.g. dataset `raw`).

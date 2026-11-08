@@ -46,16 +46,25 @@ output "dataflow_sa" {
   value = google_service_account.dataflow.email
 }
 
-output "workflow_sa" {
-  value = google_service_account.workflow.email
+output "composer_sa" {
+  value = google_service_account.composer.email
 }
 
-output "workflow_name" {
-  value = google_workflows_workflow.ingest.name
+output "file_landed_subscription" {
+  value = google_pubsub_subscription.file_landed_airflow.name
 }
 
-output "eventarc_trigger" {
-  value = google_eventarc_trigger.file_landed.name
+# Composer outputs are empty while enable_composer = false.
+output "composer_env" {
+  value = var.enable_composer ? local.composer_name : ""
+}
+
+output "dag_gcs_prefix" {
+  value = try(google_composer_environment.airflow[0].config[0].dag_gcs_prefix, "")
+}
+
+output "airflow_uri" {
+  value = try(google_composer_environment.airflow[0].config[0].airflow_uri, "")
 }
 
 output "audit_dataset" {

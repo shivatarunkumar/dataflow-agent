@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f630fa33-6c3b-4f83-b750-c95e308f6495",
+  "status": "current",
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.json",
+  "output": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+  "specification": {
+    "sha256": "db8ff872991752f9d05f6a17ea49ba88d2cda0158dac0b102ad98606253c2d44",
+    "bytes": 5907
+  },
+  "artifact": {
+    "sha256": "456e14d63274435926ac9e696d3be12a7c93e824211e47d1939cd66bcf89b957",
+    "bytes": 847520
+  }
+}

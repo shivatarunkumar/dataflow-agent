@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "sequence",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.json",
+    "sha256": "278fa2654f84d721d87337062c520a4cac775814c8a9ca66b3aa2744b5a1168d",
+    "bytes": 7910
+  },
+  "artifact": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.html",
+    "sha256": "a1fe4e43ebb63a452c0687a9a8547b0a686b17f9ac0f97c8e3b81f75ff9f185a",
+    "bytes": 849419
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.finalize.json",
+    "summaryReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.finalize-summary.json",
+    "browserCheckReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 6169,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

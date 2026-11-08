@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.json",
+    "sha256": "cfa854aeedd16b218059ee6dc1de6b644974d3d1e542a0477dcf34ce6eccb993",
+    "bytes": 8202
+  },
+  "artifact": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.html",
+    "sha256": "5ae7a55e8261befc1714b0ad241ea6cb3a04da071404327f316e267d9f78c4eb",
+    "bytes": 866060
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.finalize.json",
+    "summaryReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.finalize-summary.json",
+    "browserCheckReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 13370,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  },
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 2,
+      "routesOverSuggestedBends": 1
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "register",
+            "from": "workflow",
+            "to": "audit",
+            "label": "register · finalize",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "right": {
+            "id": "image",
+            "from": "ar",
+            "to": "dataflow",
+            "label": "image",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "point": [
+            796,
+            492
+          ]
+        },
+        {
+          "left": {
+            "id": "register",
+            "from": "workflow",
+            "to": "audit",
+            "label": "register · finalize",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "right": {
+            "id": "audit-rows",
+            "from": "dataflow",
+            "to": "audit",
+            "label": "checks · MERGE",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "point": [
+            888,
+            636
+          ],
+          "sharedNode": "audit"
+        }
+      ],
+      "detours": [
+        {
+          "relationship": {
+            "id": "register",
+            "from": "workflow",
+            "to": "audit",
+            "label": "register · finalize",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "bends": 3,
+          "stretch": 1.108,
+          "directCorridorBlockers": [
+            {
+              "id": "dataflow",
+              "label": "Dataflow Flex job",
+              "box": [
+                820,
+                460,
+                150,
+                64
+              ]
+            }
+          ]
+        }
+      ],
+      "truncated": false
+    },
+    "hints": [
+      "workflow → audit crosses ar → dataflow: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "workflow → audit and dataflow → audit cross next to audit: move node workflow or dataflow so the two reach audit from different sides (for example one level with it, one directly above or below it)."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

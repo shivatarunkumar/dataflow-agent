@@ -1,19 +1,34 @@
 # System: GCS → BigQuery ingestion pipeline (for incident agents)
 
 ## What the pipeline does
-A delimited CSV file lands in `gs://<project>-dfa-landing/landing/<file>`. A GCS notification goes to the
-Pub/Sub topic `dfa-file-landed`. An Eventarc trigger then starts one **Cloud Workflows** execution
-(`dfa-ingest-file`) per file. The workflow:
-1. Claims the delivery (`gs://<project>-dfa-dataflow/claims/...`) so duplicate Pub/Sub deliveries are skipped.
-2. Inserts a `job_metadata` row with status `IN_PROGRESS` (`job_id` = UUID).
-3. Waits for a Dataflow slot. Only `max_concurrent_jobs` (default 1) jobs run at once, using lock objects in
-   `gs://<project>-dfa-dataflow/locks/`. This keeps the project inside its external-IP quota (4 in europe-west2).
-4. Launches the **Dataflow Flex Template** `gcs-to-bq` (Apache Beam, Python) with `input_file` and `audit_job_id`.
-5. Polls the Dataflow job until it reaches a terminal state (max 60 min), then releases the slot.
-6. Finalizes: reads the status that Dataflow wrote. If the Dataflow job did not end `JOB_STATE_DONE`, or the status is
-   still `IN_PROGRESS`, it sets `FAILED` (`error_code = DATAFLOW_JOB_FAILED`). It moves the file to
+A delimited CSV file lands in `gs://<project>-dfa-landing/landing/<file>`. A GCS notification goes to the Pub/Sub
+topic `dfa-file-landed` and waits on the pull subscription `dfa-file-landed-airflow`. **Apache Airflow (Cloud
+Composer 3, environment `dfa-composer`)** orchestrates:
+1. DAG `pubsub_file_listener` (every 2 min) pulls the notifications and triggers one run of DAG `gcs_to_bq_dataflow`
+   per file generation, with `dag_run_id = file__<generation>__<file name>`. A duplicate delivery maps to the same
+   run id and is skipped.
+2. Task `register_job` inserts a `job_metadata` row with status `IN_PROGRESS` (`job_id` = UUID,
+   `service_name = 'composer'`, `service_revision = <dag_run_id>`).
+3. Task `run_dataflow` launches the **Dataflow Flex Template** `gcs-to-bq` (Apache Beam, Python) as job
+   `ingest-<job_id>` and waits for it (max 60 min, then Airflow cancels it). Only `max_concurrent_jobs` (default 1) of
+   these tasks run at once; other files wait as *scheduled* task instances. This keeps the project inside its
+   external-IP quota (4 in europe-west2; each Dataflow job uses 2).
+4. Task `finalize` (always runs) reads the status that Dataflow wrote. If the Dataflow job did not end
+   `JOB_STATE_DONE`, or the status is still `IN_PROGRESS`, it sets `FAILED` with `error_code = DATAFLOW_JOB_FAILED`,
+   or `AIRFLOW_TASK_FAILED` when no Dataflow job was created (e.g. the launch was rejected). It moves the file to
    `archive/YYYY/MM/DD/` (SUCCESS) or `invalid/YYYY/MM/DD/` (anything else).
-7. On FAILED or REJECTED, publishes an error event to `dfa-ingest-errors`. That event is your incident.
+5. On FAILED or REJECTED, `finalize` publishes an error event (schema v2) to `dfa-ingest-errors`. If the run fails
+   without `finalize` doing that (e.g. `register_job` crashed), a DAG failure callback publishes a minimal event.
+   That event is your incident.
+
+## Investigate top-down: Airflow → Dataflow → BigQuery
+1. **Airflow:** `get_airflow_dag_run`, `get_airflow_task_instances`, then `get_airflow_task_log` for the first failed
+   task. If a task other than `run_dataflow` failed, or `run_dataflow` failed and `find_dataflow_job` finds no job, the
+   failure is in the **AIRFLOW** layer.
+2. **Dataflow:** `get_dataflow_job`, `get_dataflow_errors`, `get_logs`. A FAILED/CANCELLED job is the **DATAFLOW**
+   layer; the failing step and the exception say why.
+3. **BigQuery audit:** a DONE Dataflow job with status FAILED is the **PIPELINE** layer (reconciliation); REJECTED is
+   the **DATA** layer (see failed checks).
 
 ## Dataflow job checks (all ERROR severity: any failure rejects the whole file)
 | check_name | What it verifies |
@@ -44,7 +59,8 @@ that passes the checks but fails reconciliation, or a crashed Dataflow job, ends
 | Check results | BigQuery `file_audit.validation_metadata` (one row per check per job_id) |
 | Loaded data | BigQuery `raw.<contract>` (lineage columns `_job_id`, `_source_file`, `_loaded_at`) |
 | Dataflow errors | Dataflow job messages (JOB_MESSAGE_ERROR) and Cloud Logging `resource.type="dataflow_step"` |
-| Orchestration | Workflow execution of `dfa-ingest-file` (its state and error payload) |
+| Orchestration | Airflow DAG run `gcs_to_bq_dataflow` / `<dag_run_id>`: task states and task logs (Airflow REST API) |
+| Launched job | Dataflow job named `ingest-<job_id>` (`find_dataflow_job`) |
 | The file | `invalid/YYYY/MM/DD/<file>` after a failure |
 | Previous agent actions | BigQuery `file_audit.agent_incidents` |
 

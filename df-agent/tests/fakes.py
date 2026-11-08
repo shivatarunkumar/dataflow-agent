@@ -37,6 +37,40 @@ def rejected_header_payload(job_id="job-header-1"):
     }
 
 
+LAUNCH_REJECTED_LOG = """[2026-11-03, 10:02:11 UTC] {dataflow.py:410} INFO - Launching flex template job
+[2026-11-03, 10:02:12 UTC] {taskinstance.py:3311} ERROR - Task failed with exception
+Traceback (most recent call last):
+  File "/opt/python3.11/lib/python3.11/site-packages/airflow/providers/google/cloud/hooks/dataflow.py", line 728, in launch_job_with_flex_template
+    response: dict = request.execute(num_retries=self.num_retries)
+googleapiclient.errors.HttpError: <HttpError 400 when requesting https://dataflow.googleapis.com/v1b3/projects/bigquerytarun/locations/europe-west2/flexTemplates:launch?alt=json returned "The template parameters are invalid. Details: input_fil: Unrecognized parameter". Details: "The template parameters are invalid.">
+[2026-11-03, 10:02:12 UTC] {taskinstance.py:1225} INFO - Marking task as FAILED."""
+
+
+def airflow_orchestration(run_id="file__1730612345__customer_20261015.csv", failed_task="run_dataflow", task_error=""):
+    return {"type": "airflow", "environment": "dfa-composer", "dag_id": "gcs_to_bq_dataflow", "dag_run_id": run_id,
+            "failed_task": failed_task, "task_error": task_error, "console_url": "https://airflow.example/dags/x",
+            "tasks": [{"task_id": "register_job", "state": "success", "try_number": 1, "duration": 3.1},
+                      {"task_id": "run_dataflow", "state": "failed" if failed_task == "run_dataflow" else "success",
+                       "try_number": 1, "duration": 2.4},
+                      {"task_id": "finalize", "state": "failed", "try_number": 1, "duration": 4.0}]}  # fmt: skip
+
+
+def airflow_launch_failed_payload(job_id="job-launch-1"):
+    """v2 event: the flex template launch was rejected, so no Dataflow job exists (AIRFLOW layer)."""
+    return {
+        "schema_version": "2",
+        "job": {"job_id": job_id, "status": "FAILED", "error_code": "AIRFLOW_TASK_FAILED", "job_name": "customer_load",
+                "error_message": "Dataflow job  ended in NOT_STARTED. Airflow task run_dataflow failed. "
+                                 "googleapiclient.errors.HttpError: <HttpError 400 ...>"},  # fmt: skip
+        "file": {"bucket": "test-landing", "name": "landing/customer_20261015.csv", "generation": "1730612345",
+                 "original_path": "gs://test-landing/landing/customer_20261015.csv",
+                 "final_path": "gs://test-landing/invalid/2026/11/03/customer_20261015.csv"},  # fmt: skip
+        "failed_checks": [],
+        "dataflow": {"job_id": "", "state": "NOT_STARTED", "launch_error": LAUNCH_REJECTED_LOG[-2500:], "error_messages": []},
+        "orchestration": airflow_orchestration(task_error=LAUNCH_REJECTED_LOG[-2500:]),
+    }
+
+
 class FakePack(DataflowIngestPack):
     """Real event parsing, action building and reporting; fake evidence, facts and execution."""
 
@@ -65,16 +99,43 @@ class FakePack(DataflowIngestPack):
             return (f"{member} {'HAS' if has else 'does NOT have'} {permission} (project roles: ['roles/dataflow.worker'])",
                     {"verdict": self.permission_verdict, "member": member, "permission": permission})  # fmt: skip
 
+        def task_log(dag_run_id, task_id, try_number=0):  # signal: the failed task's log
+            text = getattr(self, "airflow_log", LAUNCH_REJECTED_LOG)
+            return f"Airflow log {task_id}", {"task_id": task_id, "try_number": 1, "text": text}
+
+        def task_instances(dag_run_id):  # context
+            tasks = airflow_orchestration(dag_run_id)["tasks"]
+            return "3 task instances", {"tasks": tasks, "failed": [t["task_id"] for t in tasks if t["state"] == "failed"]}
+
+        def find_job(audit_job_id):  # context: the launch never created a job
+            return f"no Dataflow job named ingest-{audit_job_id} exists", {"exists": False, "name": f"ingest-{audit_job_id}"}
+
+        def gcp_calls(e):
+            calls = []
+            orch = e["orchestration"]
+            if orch.get("type") == "airflow":
+                calls += [("get_airflow_task_instances", {"dag_run_id": orch["dag_run_id"]}),
+                          ("get_airflow_task_log", {"dag_run_id": orch["dag_run_id"], "task_id": orch.get("failed_task") or "run_dataflow"})]
+                if not e["dataflow"].get("job_id"):
+                    calls.append(("find_dataflow_job", {"audit_job_id": e["incident_id"]}))
+            if e["status"] == "FAILED" and e["dataflow"].get("job_id"):
+                calls += [("get_dataflow_job", {"dataflow_job_id": e["dataflow"]["job_id"]}),
+                          ("get_dataflow_errors", {"dataflow_job_id": e["dataflow"]["job_id"]})]
+            if e["status"] == "FAILED":
+                calls.append(("get_quota", {"metric": "IN_USE_ADDRESSES"}))
+            return calls  # fmt: skip
+
         audit = Gatherer("audit_agent", "audit", "fake audit", [ToolSpec("get_job", "", job, {"job_id": {}}, signal=True)],
                          lambda e: [("get_job", {"job_id": e["incident_id"]})])  # fmt: skip
         gcp = Gatherer("gcp_agent", "gcp", "fake gcp",
                        [ToolSpec("get_dataflow_errors", "", self.dataflow_errors_tool(), {"dataflow_job_id": {}}, signal=True),
                         ToolSpec("get_dataflow_job", "", dataflow_job, {"dataflow_job_id": {}}),
                         ToolSpec("get_quota", "", quota, {"metric": {}}),
-                        ToolSpec("check_permission", "", check_permission, {"member": {}, "permission": {}, "dataset": {}})],
-                       lambda e: [("get_dataflow_job", {"dataflow_job_id": e["dataflow"]["job_id"]}),
-                                  ("get_dataflow_errors", {"dataflow_job_id": e["dataflow"]["job_id"]}),
-                                  ("get_quota", {"metric": "IN_USE_ADDRESSES"})] if e["status"] == "FAILED" else [])  # fmt: skip
+                        ToolSpec("check_permission", "", check_permission, {"member": {}, "permission": {}, "dataset": {}}),
+                        ToolSpec("get_airflow_task_log", "", task_log, {"dag_run_id": {}, "task_id": {}}, signal=True),
+                        ToolSpec("get_airflow_task_instances", "", task_instances, {"dag_run_id": {}}),
+                        ToolSpec("find_dataflow_job", "", find_job, {"audit_job_id": {}})],
+                       gcp_calls)  # fmt: skip
         return [audit, gcp]
 
     def dataflow_errors_tool(self):

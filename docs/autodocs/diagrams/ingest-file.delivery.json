@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f45cd526-c1ae-4e25-bae6-e12e82166274",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.json",
+  "output": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/ingest-file.html",
+  "specification": {
+    "sha256": "278fa2654f84d721d87337062c520a4cac775814c8a9ca66b3aa2744b5a1168d",
+    "bytes": 7910
+  },
+  "artifact": {
+    "sha256": "a1fe4e43ebb63a452c0687a9a8547b0a686b17f9ac0f97c8e3b81f75ff9f185a",
+    "bytes": 849419
+  }
+}

@@ -27,7 +27,7 @@ def test_quota_failure_is_retried_automatically(cfg):
     assert pack.executed[0]["params"] == {"bucket": "test-landing", "source": "invalid/2026/10/18/customer_20261015.csv",
                                           "destination": "landing/customer_20261015.csv"}  # fmt: skip
     assert store.retries_24h("customer_20261015.csv") == 1
-    for key in ("report_md", "report_pdf", "evidence", "review", "state"):
+    for key in ("report_md", "report_pdf", "change_md", "evidence", "review", "state"):
         assert Path(result["report_paths"][key]).exists()
 
 

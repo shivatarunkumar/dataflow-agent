@@ -3,11 +3,16 @@
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from incident_core.domain import ToolSpec
 from incident_core.errors import clip
 
 _ID = re.compile(r"^[A-Za-z0-9_\-.:]{1,200}$")  # ids interpolated into log filters / resource names
+_RUN_ID = re.compile(r"^[A-Za-z0-9_.~:+\-]{1,250}$")  # Airflow's allowed run_id pattern
+
+INGEST_DAG_ID = "gcs_to_bq_dataflow"
+DATAFLOW_TASK_ID = "run_dataflow"
 
 
 def _check_id(value: str, what: str) -> str:
@@ -97,7 +102,6 @@ def build_gcp_tools(clients, gcp: dict) -> list:
         "dataflow_errors": 'resource.type="dataflow_step" AND resource.labels.job_id="{id}" AND severity>=ERROR',
         "dataflow_job": 'resource.type="dataflow_step" AND resource.labels.job_id="{id}" AND severity>=WARNING',
         "dataflow_job_all": 'resource.type="dataflow_step" AND resource.labels.job_id="{id}"',
-        "workflow_execution": 'resource.type="workflows.googleapis.com/Workflow" AND labels."workflows.googleapis.com/execution_id"="{id}"',
     }
 
     def get_logs(preset: str, resource_id: str, hours: int = 72, limit: int = 50):
@@ -116,13 +120,60 @@ def build_gcp_tools(clients, gcp: dict) -> list:
         worst = [_last_line(e["message"]) for e in unique if e["severity"] in ("ERROR", "CRITICAL", "ALERT", "EMERGENCY")][:2]
         return f"{seen} log entries ({len(unique)} distinct, {preset} {resource_id}); errors end with: {worst or 'none'}", unique
 
-    def get_workflow_execution(execution_id: str):
-        name = (f"projects/{project}/locations/{region}/workflows/{gcp['workflow']}/executions/"
-                f"{_check_id(execution_id, 'execution id')}")  # fmt: skip
-        ex = clients.workflow_executions.get_execution(name=name)
-        data = {"state": ex.state.name, "start_time": _ts(ex.start_time), "end_time": _ts(ex.end_time),
-                "error": clip(ex.error.payload or "", 8000) if ex.error else "", "result": clip(ex.result or "", 4000)}  # fmt: skip
-        return f"Workflow execution {execution_id}: {data['state']}; error: {data['error'][:200] or 'none'}", data
+    # --- Airflow (Composer) REST API: read-only GETs -------------------------------------------------------
+    def _run_path(dag_run_id: str) -> str:
+        if not dag_run_id or not _RUN_ID.match(dag_run_id):
+            raise ValueError(f"invalid dag_run_id: {dag_run_id!r}")
+        return f"dags/{INGEST_DAG_ID}/dagRuns/{quote(dag_run_id, safe='')}"
+
+    def _task_instances(dag_run_id: str) -> list:
+        body = clients.airflow.get(f"{_run_path(dag_run_id)}/taskInstances")
+        keep = ("task_id", "state", "try_number", "map_index", "operator", "queued_when", "start_date", "end_date",
+                "duration", "hostname")  # fmt: skip
+        return [{k: ti.get(k) for k in keep} for ti in body.get("task_instances", [])]
+
+    def get_airflow_dag_run(dag_run_id: str):
+        run = clients.airflow.get(_run_path(dag_run_id))
+        data = {k: run.get(k) for k in ("dag_run_id", "state", "run_type", "start_date", "end_date", "logical_date",
+                                        "external_trigger", "conf", "note")}  # fmt: skip
+        return (f"Airflow {INGEST_DAG_ID} run {dag_run_id}: {data['state']} "
+                f"(started {data['start_date']}, ended {data['end_date'] or '-'})"), data  # fmt: skip
+
+    def get_airflow_task_instances(dag_run_id: str):
+        tasks = _task_instances(dag_run_id)
+        failed = [t["task_id"] for t in tasks if t["state"] in ("failed", "upstream_failed")]
+        states = ", ".join(f"{t['task_id']}={t['state']}" for t in tasks)
+        return f"{len(tasks)} task instances: {states}; failed: {failed or 'none'}", {"tasks": tasks, "failed": failed}
+
+    def get_airflow_task_log(dag_run_id: str, task_id: str, try_number: int = 0):
+        """The task's log for one try (latest if try_number is 0). The exception is at the end, so head+tail is kept."""
+        _check_id(task_id, "task id")
+        try_number = int(try_number or 0)
+        if try_number <= 0:
+            task = next((t for t in _task_instances(dag_run_id) if t["task_id"] == task_id), None)
+            if task is None:
+                return f"task {task_id} is not part of run {dag_run_id}", {"task_id": task_id, "text": ""}
+            try_number = max(int(task.get("try_number") or 1), 1)
+        text = clients.airflow.get(f"{_run_path(dag_run_id)}/taskInstances/{task_id}/logs/{try_number}",
+                                   params={"full_content": "true"}, text=True)  # fmt: skip
+        return (f"Airflow log {task_id} try {try_number} ({len(text)} chars); ends with: {_last_line(text) or 'empty'}",
+                {"task_id": task_id, "try_number": try_number, "text": clip(text, 12000, head=1500)})  # fmt: skip
+
+    def find_dataflow_job(audit_job_id: str):
+        """The Dataflow job the DAG launched for this audit job (deterministic name ingest-<job_id>), if any."""
+        from google.cloud import dataflow_v1beta3
+
+        name = f"ingest-{_check_id(audit_job_id, 'job id')}"
+        request = dataflow_v1beta3.ListJobsRequest(project_id=project, location=region, page_size=100,
+                                                   filter=dataflow_v1beta3.ListJobsRequest.Filter.ALL)  # fmt: skip
+        for i, job in enumerate(clients.dataflow_jobs.list_jobs(request=request)):
+            if job.name == name:
+                data = {"exists": True, "id": job.id, "name": name, "state": job.current_state.name,
+                        "create_time": _ts(job.create_time)}  # fmt: skip
+                return f"Dataflow job {name} = {job.id}: {data['state']}", data
+            if i >= 300:
+                break
+        return f"no Dataflow job named {name} exists: the launch never created one", {"exists": False, "name": name}
 
     def check_permission(member: str, permission: str, dataset: str = ""):
         """VERIFICATION: does `member` hold `permission` via its project roles or dataset roles?"""
@@ -189,11 +240,19 @@ def build_gcp_tools(clients, gcp: dict) -> list:
         ToolSpec("get_dataflow_errors", "Error messages of a Dataflow job.", get_dataflow_errors,
                  {"dataflow_job_id": s("Dataflow job id")}, signal=True),
         ToolSpec("get_logs", f"Cloud Logging entries. preset one of {sorted(presets)}.", get_logs,
-                 {"preset": s("log preset"), "resource_id": s("Dataflow job id or workflow execution id"),
+                 {"preset": s("log preset"), "resource_id": s("Dataflow job id"),
                   "hours": {"type": "integer", "description": "look-back hours", "required": False}}, signal=True),
-        ToolSpec("get_workflow_execution", "State and error payload of the orchestration workflow execution.",
-                 get_workflow_execution, {"execution_id": s("workflow execution id")}, signal=True),
+        ToolSpec("get_airflow_task_log", "Log of one Airflow task try of the ingestion DAG run (the exception is at the end).",
+                 get_airflow_task_log, {"dag_run_id": s("Airflow dag_run_id"), "task_id": s("task id, e.g. run_dataflow"),
+                                        "try_number": {"type": "integer", "description": "try (0 = latest)", "required": False}},
+                 signal=True),
         # Context only: state/readings, never treated as an error by the signature rules.
+        ToolSpec("get_airflow_dag_run", "State, timing and conf of the Airflow ingestion DAG run.", get_airflow_dag_run,
+                 {"dag_run_id": s("Airflow dag_run_id")}),
+        ToolSpec("get_airflow_task_instances", "State, try number and duration of every task in the DAG run.",
+                 get_airflow_task_instances, {"dag_run_id": s("Airflow dag_run_id")}),
+        ToolSpec("find_dataflow_job", "Find the Dataflow job launched for an audit job_id (or confirm none exists).",
+                 find_dataflow_job, {"audit_job_id": s("job id (UUID)")}),
         ToolSpec("get_dataflow_job", "State and timing of a Dataflow job.", get_dataflow_job,
                  {"dataflow_job_id": s("Dataflow job id")}),
         ToolSpec("get_gcs_object", "Existence/size/metadata of a pipeline GCS object.", get_gcs_object,
@@ -209,15 +268,29 @@ def build_gcp_tools(clients, gcp: dict) -> list:
     ]  # fmt: skip
 
 
+def airflow_failed_task(event: dict) -> str:
+    """Task whose log explains the failure. Live events name it; replays don't, so a FAILED job reads run_dataflow."""
+    orchestration = event["orchestration"]
+    if "failed_task" in orchestration:
+        return orchestration.get("failed_task") or ""
+    return DATAFLOW_TASK_ID if event["status"] == "FAILED" else ""
+
+
 def default_gcp_calls(event: dict) -> list:
-    dataflow, calls = event["dataflow"], []
+    """Top-down: Airflow DAG run -> failed task + its log -> Dataflow job -> Dataflow errors/logs -> platform context."""
+    dataflow, orchestration, calls = event["dataflow"], event["orchestration"], []
+    if orchestration.get("type") == "airflow" and orchestration.get("dag_run_id"):
+        run_id = orchestration["dag_run_id"]
+        calls += [("get_airflow_dag_run", {"dag_run_id": run_id}), ("get_airflow_task_instances", {"dag_run_id": run_id})]
+        failed_task = airflow_failed_task(event)
+        if failed_task:
+            calls.append(("get_airflow_task_log", {"dag_run_id": run_id, "task_id": failed_task}))
+        if not dataflow.get("job_id") and event["status"] == "FAILED" and event["job"].get("job_id"):
+            calls.append(("find_dataflow_job", {"audit_job_id": event["job"]["job_id"]}))
     if dataflow.get("job_id"):
         calls += [("get_dataflow_job", {"dataflow_job_id": dataflow["job_id"]}),
                   ("get_dataflow_errors", {"dataflow_job_id": dataflow["job_id"]}),
                   ("get_logs", {"preset": "dataflow_errors", "resource_id": dataflow["job_id"]})]  # fmt: skip
-    execution_id = event["orchestration"].get("execution_id")
-    if execution_id:
-        calls.append(("get_workflow_execution", {"execution_id": execution_id}))
     if event["file"].get("final_path"):
         calls.append(("get_gcs_object", {"path": event["file"]["final_path"]}))
     if event["status"] == "FAILED":

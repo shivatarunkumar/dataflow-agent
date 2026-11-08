@@ -20,9 +20,10 @@ AUDIT_DATASET=$(out audit_dataset)
 TARGET_DATASET=$(out target_dataset)
 TARGET_TABLES=$(out target_tables)
 DATAFLOW_SA=$(out dataflow_sa)
-WORKFLOW_SA=$(out workflow_sa)
-WORKFLOW_NAME=$(out workflow_name)
-EVENTARC_TRIGGER=$(out eventarc_trigger)
+COMPOSER_SA=$(out composer_sa)
+FILE_SUB=$(out file_landed_subscription)
+COMPOSER_ENV=$(out composer_env)
+DAG_PREFIX=$(out dag_gcs_prefix)
 ARTIFACT_REPO=$(out artifact_repo)
 IMAGE_URI=$(out image_uri)
 TEMPLATE_PATH=$(out template_path)
@@ -89,18 +90,19 @@ section "Pub/Sub"
 check "topic $TOPIC" gcloud pubsub topics describe "$TOPIC" --project "$PROJECT_ID"
 check "error topic $(out error_topic)" gcloud pubsub topics describe "$(out error_topic)" --project "$PROJECT_ID"
 check "error subscription $(out error_subscription)" gcloud pubsub subscriptions describe "$(out error_subscription)" --project "$PROJECT_ID"
-TOPIC_SUBS=$(gcloud pubsub topics list-subscriptions "$TOPIC" --project "$PROJECT_ID" --format='value(.)' 2>/dev/null)
-check "Eventarc subscription attached to $TOPIC" test -n "$TOPIC_SUBS"
+check "file subscription $FILE_SUB (pulled by Airflow)" gcloud pubsub subscriptions describe "$FILE_SUB" --project "$PROJECT_ID"
 
-section "Eventarc / Workflows"
-TRIGGER_JSON=$(gcloud eventarc triggers describe "$EVENTARC_TRIGGER" --location "$REGION" --project "$PROJECT_ID" --format=json 2>/dev/null)
-check "trigger $EVENTARC_TRIGGER exists" test -n "$TRIGGER_JSON"
-check "trigger $EVENTARC_TRIGGER targets workflow $WORKFLOW_NAME" grep -q "workflows/$WORKFLOW_NAME" <<<"$TRIGGER_JSON"
-# Triggers report readiness in conditions; a non-ready trigger shows a condition with code != OK.
-check "trigger $EVENTARC_TRIGGER ready (no failing conditions)" \
-  bash -c 'test -n "$1" && ! grep -Eq "\"code\": \"(FAILED_PRECONDITION|NOT_FOUND|PERMISSION_DENIED|INTERNAL)\"" <<<"$1"' _ "$TRIGGER_JSON"
-expect "workflow $WORKFLOW_NAME state" "ACTIVE" \
-  "$(gcloud workflows describe "$WORKFLOW_NAME" --location "$REGION" --project "$PROJECT_ID" --format='value(state)' 2>/dev/null)"
+section "Airflow (Cloud Composer)"
+if [[ -z "$COMPOSER_ENV" ]]; then
+  printf "  %sWARN%s  Composer is down (enable_composer=false): files queue on %s until 'make airflow-up'\n" "$YELLOW" "$RESET" "$FILE_SUB"
+  WARNED=$((WARNED + 1))
+else
+  expect "environment $COMPOSER_ENV state" "RUNNING" \
+    "$(gcloud composer environments describe "$COMPOSER_ENV" --location "$REGION" --project "$PROJECT_ID" --format='value(state)' 2>/dev/null)"
+  for dag in pubsub_file_listener.py gcs_to_bq_dataflow.py dfa_common/logic.py; do
+    warn_check "DAG file $dag uploaded (make dags-deploy)" gcloud storage objects describe "$DAG_PREFIX/$dag" --project "$PROJECT_ID"
+  done
+fi
 
 section "BigQuery"
 for ds in "$AUDIT_DATASET" "$TARGET_DATASET"; do
@@ -115,7 +117,7 @@ done
 
 section "IAM"
 # `disabled` is omitted from the output when the account is enabled, so only "True" means disabled.
-for sa in "$DATAFLOW_SA" "$WORKFLOW_SA"; do
+for sa in "$DATAFLOW_SA" "$COMPOSER_SA"; do
   check "service account $sa exists and enabled" bash -c \
     'out=$(gcloud iam service-accounts describe "$1" --project "$2" --format="value(disabled)") && [[ "$out" != "True" ]]' \
     _ "$sa" "$PROJECT_ID"

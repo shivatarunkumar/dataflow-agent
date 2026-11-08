@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/agent-incident.json",
+    "sha256": "f6dd4dfaad181b436c1f48d2562dc6cfc5d7e4359874321f5effad030db16f26",
+    "bytes": 9394
+  },
+  "artifact": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/agent-incident.html",
+    "sha256": "e48c0726ae564a448a4c13c0eb45001377a427cb3350f641c10d02a1f1c7dae4",
+    "bytes": 858503
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/agent-incident.finalize.json",
+    "summaryReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/agent-incident.finalize-summary.json",
+    "browserCheckReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/agent-incident.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 10448,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

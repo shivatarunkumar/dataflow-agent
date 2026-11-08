@@ -24,16 +24,32 @@ resource "google_storage_notification" "landing" {
   depends_on = [google_pubsub_topic_iam_member.gcs_publisher]
 }
 
-# The subscription is created and owned by the Eventarc trigger (workflows.tf).
+# Pulled by the Airflow DAG pubsub_file_listener. It exists independently of Composer, so files landed while the
+# environment is down wait here (7 days) and are processed after `make airflow-up`.
+resource "google_pubsub_subscription" "file_landed_airflow" {
+  name                       = "${var.prefix}-file-landed-airflow"
+  topic                      = google_pubsub_topic.file_landed.id
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s"
+  expiration_policy {
+    ttl = "" # never expire for inactivity
+  }
+}
 
-# Error events for failed/rejected jobs (published by the workflow; see project.md 7a).
+resource "google_pubsub_subscription_iam_member" "composer_file_landed_subscriber" {
+  subscription = google_pubsub_subscription.file_landed_airflow.id
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:${google_service_account.composer.email}"
+}
+
+# Error events for failed/rejected jobs (published by the gcs_to_bq_dataflow DAG; see project.md 7a).
 resource "google_pubsub_topic" "ingest_errors" {
   name                       = "${var.prefix}-ingest-errors"
   message_retention_duration = "604800s"
   depends_on                 = [google_project_service.services]
 }
 
-# Holds events until a consumer (e.g. an investigation agent) exists; a topic alone drops messages.
+# Holds events until the df-agent consumes them; a topic alone drops messages.
 resource "google_pubsub_subscription" "ingest_errors" {
   name                       = "${var.prefix}-ingest-errors-sub"
   topic                      = google_pubsub_topic.ingest_errors.id
@@ -44,8 +60,8 @@ resource "google_pubsub_subscription" "ingest_errors" {
   }
 }
 
-resource "google_pubsub_topic_iam_member" "workflow_error_publisher" {
+resource "google_pubsub_topic_iam_member" "composer_error_publisher" {
   topic  = google_pubsub_topic.ingest_errors.id
   role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${google_service_account.workflow.email}"
+  member = "serviceAccount:${google_service_account.composer.email}"
 }

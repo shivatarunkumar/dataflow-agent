@@ -1,0 +1,310 @@
+<ac:structured-macro ac:name="toc" ac:schema-version="1"><ac:parameter ac:name="maxLevel">3</ac:parameter></ac:structured-macro>
+<h2>Overview</h2>
+<p>dataflow-agent is a serverless GCS → BigQuery file-ingestion pipeline on Google Cloud, plus an incident-response agent that investigates failed loads.</p>
+<p>A delimited CSV dropped into the landing bucket is validated against a per-entity data contract. If every check passes, it is loaded into a BigQuery <code>raw.&lt;entity&gt;</code> table and reconciled by row count. Every run and every check is recorded in audit tables. When a file is rejected or a job fails, an error event is published. <code>df-agent</code>, a LangGraph multi-agent program you run locally, picks up that event. It gathers evidence, classifies the root cause, retries the file automatically when the failure was transient, and writes an incident report for a human otherwise.</p>
+<p>Key capabilities:</p>
+<ul>
+<li>One Cloud Workflows execution per landed file, started by GCS notification → Pub/Sub → Eventarc.</li>
+<li>Exactly one audit job per file generation, even when Pub/Sub delivers a message twice.</li>
+<li>A Dataflow Flex Template (Apache Beam, Python) that runs seven ERROR-level checks: contract match, file name, header, delimiter, trailer, data types and post-load reconciliation.</li>
+<li>Whole-file rejection: any failed pre-load check means nothing is loaded.</li>
+<li>A global concurrency limit on Dataflow jobs (default 1), enforced with GCS lock objects, so jobs fit the project's external-IP quota.</li>
+<li>An incident agent with deterministic policy, create-only retries, and IAM that cannot delete anything.</li>
+</ul>
+<p><strong>Summary for managers:</strong> files that partners drop into a bucket are checked, loaded into BigQuery and audited automatically, at roughly $0 when idle. When a file is bad or a load breaks, an agent explains why within minutes. It re-runs the file on its own only for temporary platform problems; everything else becomes a report for an engineer.</p>
+<p>What it is not: it is not a streaming pipeline, not a general ETL framework (it appends rows; it does not transform or deduplicate them), and the agent never changes code, configuration or data. The <code>dags/</code> folder holds the earlier Airflow/Composer design. It is obsolete and not deployed (<code>infra/composer.tf:1-2</code>).</p>
+<h2>Architecture</h2>
+<ac:structured-macro ac:name="info" ac:schema-version="1"><ac:parameter ac:name="title">Diagram: Architecture diagram</ac:parameter><ac:rich-text-body><p><strong>Architecture diagram</strong> — editable draw.io diagram attached to this page as <ac:link><ri:attachment ri:filename="architecture.drawio" /><ac:plain-text-link-body><![CDATA[architecture.drawio]]></ac:plain-text-link-body></ac:link>.</p>
+<p>To show it here: edit the page, replace this panel with <em>Insert → draw.io Diagram</em>, then choose <em>Import</em> (or <em>File → Import from → Device</em>) and select <code>architecture.drawio</code>.</p></ac:rich-text-body></ac:structured-macro>
+<p><ac:link><ri:attachment ri:filename="architecture.html" /><ac:plain-text-link-body><![CDATA[Interactive architecture view]]></ac:plain-text-link-body></ac:link></p>
+<table data-layout="default"><tbody>
+<tr><th>Component</th><th>Responsibility</th><th>Technology</th><th>Owning code</th></tr>
+<tr><td>Landing bucket <code>&lt;project&gt;-dfa-landing</code></td><td>Receives files under <code>landing/</code>. Processed files move to <code>archive/YYYY/MM/DD/</code> or <code>invalid/YYYY/MM/DD/</code>. <code>manual/</code> is for manual runs and has no notification.</td><td>GCS</td><td><code>infra/storage.tf:5-14</code></td></tr>
+<tr><td>Topic <code>dfa-file-landed</code></td><td>Receives <code>OBJECT_FINALIZE</code> notifications for the <code>landing/</code> prefix</td><td>Pub/Sub</td><td><code>infra/pubsub.tf:1-25</code></td></tr>
+<tr><td>Eventarc trigger <code>dfa-file-landed</code></td><td>Starts one workflow execution per message</td><td>Eventarc (Pub/Sub transport)</td><td><code>infra/workflows.tf:33-58</code></td></tr>
+<tr><td>Workflow <code>dfa-ingest-file</code></td><td>Orchestrates claim → register → slot → launch → poll → release → finalize → publish</td><td>Cloud Workflows YAML</td><td><code>workflows/ingest_file.yaml:11-165</code></td></tr>
+<tr><td>Dataflow bucket <code>&lt;project&gt;-dfa-dataflow</code></td><td>Holds <code>claims/</code>, <code>locks/</code>, <code>templates/</code>, <code>temp/</code> and <code>staging/</code></td><td>GCS with lifecycle rules</td><td><code>infra/storage.tf:16-45</code></td></tr>
+<tr><td>Dataflow Flex job</td><td>Validates, loads, reconciles and writes audit rows</td><td>Apache Beam 2.77 on Python 3.12</td><td><code>dataflow-job/pipeline/pipeline.py:90-126</code></td></tr>
+<tr><td>Artifact Registry <code>dfa-dataflow</code></td><td>Stores the <code>gcs-to-bq:latest</code> launcher image</td><td>Docker image</td><td><code>infra/workflows.tf:1-4</code>, <code>dataflow-job/Dockerfile:1-16</code></td></tr>
+<tr><td><code>raw.customer</code>, <code>raw.user</code>, <code>raw.orders</code></td><td>Target tables, with <code>_job_id</code>, <code>_source_file</code> and <code>_loaded_at</code> lineage columns</td><td>BigQuery, day-partitioned on <code>_loaded_at</code></td><td><code>infra/bigquery.tf:31-43</code></td></tr>
+<tr><td><code>file_audit.job_metadata</code>, <code>validation_metadata</code>, <code>agent_incidents</code></td><td>Run history, per-check results, agent decisions</td><td>BigQuery, day-partitioned on <code>created_at</code></td><td><code>infra/bigquery.tf:17-29</code>, <code>infra/agent.tf:10-20</code></td></tr>
+<tr><td>Topic <code>dfa-ingest-errors</code> and pull subscription <code>dfa-ingest-errors-sub</code></td><td>One self-contained event per FAILED or REJECTED job, kept for 7 days</td><td>Pub/Sub</td><td><code>infra/pubsub.tf:29-51</code></td></tr>
+<tr><td><code>df-agent</code></td><td>Investigates each error event and retries or reports</td><td>Python, LangGraph, Google Cloud client libraries</td><td><code>df-agent/incident_core/graph.py:71-201</code></td></tr>
+<tr><td>Ollama <code>llama3.2</code></td><td>Default LLM for every agent role. It can be switched to Anthropic per role.</td><td>Local Ollama at <code>localhost:11434</code></td><td><code>df-agent/config.yaml:9-17</code></td></tr>
+</tbody></table>
+<p><strong>Boundaries and identities.</strong></p>
+<ul>
+<li>Everything except <code>df-agent</code> and Ollama runs in one GCP project, by default <code>bigquerytarun</code> in <code>europe-west2</code> (<code>Makefile:1-2</code>).</li>
+<li>Three service accounts are created (<code>infra/iam.tf:1-73</code>, <code>infra/agent.tf:5-86</code>):
+<ul>
+<li><code>dfa-workflow</code> is the identity of the Eventarc trigger and the workflow. It can launch Dataflow, run BigQuery DML and act as <code>dfa-dataflow</code>.</li>
+<li><code>dfa-dataflow</code> is the worker identity. It has <code>bigquery.dataEditor</code> and <code>jobUser</code>.</li>
+<li><code>dfa-agent</code> is read-only, plus <code>storage.objectCreator</code> on the landing bucket, write access to <code>agent_incidents</code> only, and subscriber on the error subscription.</li>
+</ul></li>
+<li>Your gcloud user impersonates <code>dfa-agent</code> when the agent runs locally (<code>infra/agent.tf:79-86</code>, <code>df-agent/domains/dataflow_ingest/clients.py:21-27</code>).</li>
+</ul>
+<p>Flow diagrams, each explained under <a href="#how-it-works">How it works</a>:</p>
+<ul>
+<li>Per-file ingestion sequence: <code>diagrams/ingest-file.drawio</code></li>
+<li>Job status lifecycle: <code>diagrams/job-status.drawio</code></li>
+<li>Beam pipeline dataflow: <code>diagrams/beam-pipeline.drawio</code></li>
+<li>df-agent incident graph: <code>diagrams/agent-incident.drawio</code></li>
+</ul>
+<h2>Prerequisites</h2>
+<ul>
+<li><strong>Python 3.12.</strong> The Makefile creates its venvs with <code>python3.12</code> (<code>Makefile:49-52</code>, <code>Makefile:144-147</code>), and the launcher image is <code>python312-template-launcher-base</code> (<code>dataflow-job/Dockerfile:2</code>).</li>
+<li><strong>Terraform ≥ 1.5</strong> with the <code>hashicorp/google</code> provider <code>~&gt; 6.0</code> (<code>infra/versions.tf:1-10</code>). State is local in <code>infra/</code>.</li>
+<li><strong>Google Cloud SDK</strong> (<code>gcloud</code>, <code>bq</code>), authenticated with <code>gcloud auth login</code> and <code>gcloud auth application-default login</code>.</li>
+<li><strong>Docker Desktop</strong>, running, for <code>make docker</code>. On Apple Silicon the <code>linux/amd64</code> build is emulated and slow the first time (<code>Makefile:75-79</code>).</li>
+<li><strong>A GCP project</strong> where you are Owner or Editor. Editor already includes <code>roles/artifactregistry.writer</code>, which the image push needs. Terraform enables the 12 APIs listed in <code>infra/apis.tf:1-24</code>.</li>
+<li><strong>Quota:</strong> each Dataflow job uses about 2 external IPs (launcher VM + 1 worker). The default <code>IN_USE_ADDRESSES</code> quota of 4 is why <code>max_concurrent_jobs</code> defaults to 1 (<code>infra/variables.tf:36-40</code>).</li>
+<li><strong>For df-agent:</strong> <a href="https://ollama.com">Ollama</a> with the <code>llama3.2</code> model pulled, or an <code>ANTHROPIC_API_KEY</code> if you switch roles to Anthropic (<code>df-agent/config.yaml:9-17</code>).</li>
+</ul>
+<h2>Installation and setup</h2>
+<p>From a clean checkout, run these in order. Everything is driven by the Makefile, and <code>PROJECT_ID</code>, <code>REGION</code> and <code>PREFIX</code> can be overridden per command, for example <code>make plan PROJECT_ID=my-project</code>.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[# 1. Local Python environment for the pipeline and its tests
+make venv            # .venv: apache-beam[gcp]==2.77.0, PyYAML, pytest, openpyxl
+make test            # pipeline unit tests on DirectRunner, no GCP needed
+
+# 2. Infrastructure (about 5 minutes)
+make plan            # terraform init + plan
+make gcs-setup       # terraform apply: buckets, Pub/Sub, Eventarc, workflow, BigQuery, IAM, Artifact Registry
+
+# 3. Flex Template image and spec
+make docker          # build linux/amd64 image, push to Artifact Registry, then `make template`
+
+# 4. Verify
+make gcs-check       # every resource exists and is ACTIVE; exits 1 on any failure]]></ac:plain-text-body></ac:structured-macro>
+<p><code>make gcs-check</code> reports the Flex Template image and spec only as warnings (<code>scripts/gcs_check.sh:1-131</code>). Everything else must be OK.</p>
+<p>Then set up the agent:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make agent-venv        # .venv-agent: LangGraph, LangChain, Google clients, reportlab
+make agent-test        # policy matrix, signatures, brain coverage, graph scenarios (no GCP, no LLM)
+make agent-brain-sync  # copy BQ schemas into df-agent/brain/schemas and check runbook coverage
+ollama serve           # in another terminal, if Ollama is not already running]]></ac:plain-text-body></ac:structured-macro>
+<p><code>make agent-brain-sync</code> prints <code>brain OK</code> when every signature runbook and every category playbook exists (<code>df-agent/incident_core/runner.py:178-190</code>).</p>
+<h2>Configuration</h2>
+<p>Configuration lives in four places. The Makefile turns Terraform outputs into environment variables, so you normally change only Makefile variables or Terraform variables.</p>
+<p><strong>Makefile variables</strong> (pass them on the command line):</p>
+<table data-layout="default"><tbody>
+<tr><th>Variable / key</th><th>Required</th><th>Default</th><th>Purpose</th><th>Read at</th></tr>
+<tr><td><code>PROJECT_ID</code></td><td>no</td><td><code>bigquerytarun</code></td><td>Target GCP project</td><td><code>Makefile:1</code></td></tr>
+<tr><td><code>REGION</code></td><td>no</td><td><code>europe-west2</code></td><td>Region for every regional resource</td><td><code>Makefile:2</code></td></tr>
+<tr><td><code>PREFIX</code></td><td>no</td><td><code>dfa</code></td><td>Resource name prefix</td><td><code>Makefile:3</code></td></tr>
+<tr><td><code>AGENT_OPERATOR</code></td><td>no</td><td>your <code>gcloud</code> account</td><td>IAM member allowed to impersonate <code>dfa-agent</code></td><td><code>Makefile:6</code></td></tr>
+<tr><td><code>MAX_JOBS</code></td><td>no</td><td><code>1</code></td><td>Passed as <code>max_concurrent_jobs</code>. <code>4</code> deliberately causes <code>QUOTA_EXCEEDED</code> for agent tests.</td><td><code>Makefile:10</code></td></tr>
+<tr><td><code>FILE</code></td><td>for <code>run-dataflow</code>, <code>run-local</code></td><td>—</td><td>Mock file name or <code>gs://</code> URI</td><td><code>Makefile:41</code></td></tr>
+<tr><td><code>JOB_ID</code>, <code>INCIDENT</code>, <code>EXPECTED</code>, <code>NOTE</code></td><td>for agent targets</td><td>—</td><td>Job or incident to replay, approve or save as an eval case</td><td><code>Makefile:163-179</code></td></tr>
+<tr><td><code>CONFIRM</code></td><td>no</td><td>—</td><td><code>yes</code> skips the <code>bq-clean-up</code> prompt</td><td><code>Makefile:117-132</code></td></tr>
+</tbody></table>
+<p><strong>Terraform variables</strong> (<code>infra/variables.tf:1-46</code>, example in <code>infra/terraform.tfvars.example:1-3</code>):</p>
+<table data-layout="default"><tbody>
+<tr><th>Variable / key</th><th>Required</th><th>Default</th><th>Purpose</th><th>Read at</th></tr>
+<tr><td><code>project_id</code></td><td>yes</td><td>—</td><td>Project to deploy into</td><td><code>infra/variables.tf:1-4</code></td></tr>
+<tr><td><code>region</code></td><td>no</td><td><code>europe-west2</code></td><td>Region</td><td><code>infra/variables.tf:6-10</code></td></tr>
+<tr><td><code>prefix</code></td><td>no</td><td><code>dfa</code></td><td>Buckets are named <code>&lt;project_id&gt;-&lt;prefix&gt;-*</code></td><td><code>infra/variables.tf:12-16</code></td></tr>
+<tr><td><code>audit_dataset</code></td><td>no</td><td><code>file_audit</code></td><td>Audit dataset</td><td><code>infra/variables.tf:18-22</code></td></tr>
+<tr><td><code>target_dataset</code></td><td>no</td><td><code>raw</code></td><td>Target dataset</td><td><code>infra/variables.tf:24-28</code></td></tr>
+<tr><td><code>agent_operator</code></td><td>no</td><td><code>&quot;&quot;</code> (nobody)</td><td>Member granted Token Creator on <code>dfa-agent</code></td><td><code>infra/variables.tf:30-34</code></td></tr>
+<tr><td><code>max_concurrent_jobs</code></td><td>no</td><td><code>1</code></td><td>Number of Dataflow slots</td><td><code>infra/variables.tf:36-40</code></td></tr>
+<tr><td><code>target_tables</code></td><td>no</td><td><code>customer</code>, <code>user</code>, <code>orders</code></td><td>Each needs <code>infra/bq/&lt;name&gt;.json</code></td><td><code>infra/variables.tf:42-46</code></td></tr>
+</tbody></table>
+<p><strong>Workflow environment.</strong> Terraform sets these as workflow user env vars: <code>DFA_REGION</code>, <code>DFA_AUDIT_DATASET</code>, <code>DFA_TARGET_DATASET</code>, <code>DFA_TEMPLATE_PATH</code>, <code>DFA_DATAFLOW_SA</code>, <code>DFA_DATAFLOW_BUCKET</code>, <code>DFA_MAX_CONCURRENT_JOBS</code> and <code>DFA_ERROR_TOPIC</code> (<code>infra/workflows.tf:15-25</code>). The workflow reads them with <code>sys.get_env()</code> (<code>workflows/ingest_file.yaml:14-24</code>). Change them through Terraform, not in the console.</p>
+<p><strong>Pipeline options</strong> (Flex Template parameters, <code>dataflow-job/pipeline/options.py:8-19</code>):</p>
+<table data-layout="default"><tbody>
+<tr><th>Variable / key</th><th>Required</th><th>Default</th><th>Purpose</th><th>Read at</th></tr>
+<tr><td><code>--input_file</code></td><td>yes</td><td>—</td><td><code>gs://</code> URI, or a local path for DirectRunner</td><td><code>dataflow-job/main.py:18-19</code></td></tr>
+<tr><td><code>--audit_job_id</code></td><td>unless <code>trigger_type=MANUAL</code></td><td>generated UUID for MANUAL</td><td><code>job_metadata.job_id</code> registered by the workflow</td><td><code>dataflow-job/main.py:23-26</code></td></tr>
+<tr><td><code>--trigger_type</code></td><td>no</td><td><code>MANUAL</code></td><td><code>PUBSUB</code> or <code>MANUAL</code></td><td><code>dataflow-job/pipeline/options.py:16</code></td></tr>
+<tr><td><code>--file_generation</code>, <code>--pubsub_message_id</code></td><td>no</td><td>—</td><td>Recorded on manual inserts</td><td><code>dataflow-job/pipeline/options.py:14-15</code></td></tr>
+<tr><td><code>--audit_dataset</code> / <code>--target_dataset</code></td><td>no</td><td><code>file_audit</code> / <code>raw</code></td><td>Datasets</td><td><code>dataflow-job/pipeline/options.py:17-18</code></td></tr>
+<tr><td><code>--contracts_dir</code></td><td>no</td><td>bundled <code>contracts/</code></td><td>Contract YAML directory</td><td><code>dataflow-job/pipeline/contracts.py:73-78</code></td></tr>
+</tbody></table>
+<p><strong>Data contracts.</strong> <code>dataflow-job/contracts/&lt;entity&gt;.yaml</code> sets the file prefix, the name pattern, the delimiter, the target table and typed columns (<code>dataflow-job/contracts/customer.yaml:1-16</code>). The longest matching <code>&lt;file_prefix&gt;_</code> wins (<code>dataflow-job/pipeline/contracts.py:81-84</code>). Contracts are baked into the image, so rebuild with <code>make docker</code> after changing one.</p>
+<p><strong>df-agent</strong> (<code>df-agent/config.yaml:1-49</code>). <code>${VAR:-default}</code> placeholders are expanded from the environment, and relative directories resolve against <code>df-agent/</code> (<code>df-agent/incident_core/config.py:11-27</code>). The Makefile exports <code>DFA_PROJECT_ID</code>, <code>DFA_REGION</code>, <code>DFA_LANDING_BUCKET</code>, <code>DFA_DATAFLOW_BUCKET</code>, <code>DFA_ERROR_SUBSCRIPTION</code>, <code>DFA_AUDIT_DATASET</code>, <code>DFA_WORKFLOW_NAME</code>, <code>DFA_AGENT_SA</code> and <code>DFA_DATAFLOW_SA</code> from the Terraform outputs (<code>Makefile:35-38</code>). Other settings:</p>
+<ul>
+<li><code>OLLAMA_BASE_URL</code> (default <code>http://localhost:11434</code>)</li>
+<li><code>llm.default</code> and <code>llm.roles</code> (provider <code>ollama</code>, <code>anthropic</code> or <code>none</code> for rules-only mode)</li>
+<li><code>features.generate_patches</code> (default <code>false</code>)</li>
+<li><code>limits.evidence_rounds</code> (default 2)</li>
+<li><code>impersonate_service_account</code> (empty means use your own ADC)</li>
+</ul>
+<p><strong>Secrets.</strong> The repository holds no secrets. GCP access is ADC plus service-account impersonation. <code>ANTHROPIC_API_KEY</code> is needed only if a role uses <code>provider: anthropic</code>; keep it in your shell, not in <code>config.yaml</code>.</p>
+<h2>Usage</h2>
+<p><strong>Process files end to end.</strong> Drop all mock files into <code>landing/</code> and watch them run:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make upload-mock     # gcloud storage cp mockdata/*.csv mockdata/*.xlsx gs://<landing>/landing/
+make executions      # recent workflow executions and their state
+make errors          # peek at up to 10 error events (not acked)]]></ac:plain-text-body></ac:structured-macro>
+<p>To ingest a real file, upload <code>&lt;entity&gt;_&lt;YYYYMMDD&gt;.csv</code> to <code>gs://&lt;project&gt;-dfa-landing/landing/</code>. Its last line must be the trailer <code>T|&lt;record_count&gt;|&lt;YYYYMMDD&gt;</code>.</p>
+<p><strong>Check the results in BigQuery:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">sql</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[SELECT file_name, status, rows_in_file, rows_loaded, recon_status, final_file_path
+FROM file_audit.job_metadata ORDER BY created_at DESC;
+
+SELECT file_name, check_name, validation_result, summary
+FROM file_audit.validation_metadata ORDER BY created_at DESC;]]></ac:plain-text-body></ac:structured-macro>
+<p>Expected outcomes for the mock files:</p>
+<ul>
+<li><code>customer_20261015.csv</code>, <code>user_20261015.csv</code>, <code>orders_20261015.csv</code> and <code>customer_20261017.csv</code> end <code>SUCCESS</code>.</li>
+<li><code>user_20261016.csv</code> ends <code>REJECTED</code> on <code>header</code>.</li>
+<li><code>customer_20261018.csv</code> ends <code>REJECTED</code> on <code>trailer</code>.</li>
+<li><code>orders_20261016.xlsx</code> ends <code>REJECTED</code> on <code>file_name</code>.</li>
+<li><code>customer_20261021.csv</code> is Latin-1 encoded and ends <code>FAILED</code> with <code>UnicodeDecodeError</code>.</li>
+</ul>
+<p>The full list is in <code>project.md</code> §10. Regenerate the mock files with <code>make mockdata</code>.</p>
+<p><strong>Run the pipeline without the workflow:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make run-dataflow FILE=customer_20261015.csv            # copies to manual/ (no trigger) and runs on Dataflow
+make run-local FILE=mockdata/customer_20261015.csv      # DirectRunner, writes to real BigQuery]]></ac:plain-text-body></ac:structured-macro>
+<p>Manual runs use <code>trigger_type=MANUAL</code>. The pipeline's MERGE inserts the <code>job_metadata</code> row, and the file is not moved. <code>run-dataflow</code> bypasses the slot locks, so do not run it during a bulk upload (<code>Makefile:88-112</code>).</p>
+<p><strong>Reset the tables between tests:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make bq-clean-up              # TRUNCATE job_metadata, validation_metadata and every raw.* table; asks for "yes"
+make bq-clean-up CONFIRM=yes  # no prompt]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Run the incident agent:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make agent-listen                        # handle error events one at a time (Ctrl-C to stop)
+make agent-once                          # at most one pending event, then exit
+make agent-replay JOB_ID=<job_id>        # re-investigate a FAILED or REJECTED job without Pub/Sub
+make agent-approve INCIDENT=<job_id>     # approve pending NEEDS_HUMAN actions (e.g. a retry)
+make agent-graph                         # draw the LangGraph workflow to df-agent/graph.mmd
+make agent-eval                          # replay recorded cases in df-agent/evals/cases
+make agent-eval-add INCIDENT=<id> EXPECTED=CONFIG NOTE="..."]]></ac:plain-text-body></ac:structured-macro>
+<p>Each run prints an investigation trace and ends with a line like <code>RESULT &lt;id&gt; | status AWAITING_HUMAN | root cause DATA_QUALITY (0.95) | executed nothing | ...</code> (<code>df-agent/incident_core/runner.py:44-70</code>). Each incident's outputs land in <code>df-agent/actions/&lt;incident_id&gt;/</code>: <code>report.md</code>, <code>report.pdf</code>, <code>evidence.json</code>, <code>review.md</code>, <code>state.json</code>, <code>trace.md</code> and <code>trace.jsonl</code> (<code>df-agent/incident_core/report/writer.py:23-76</code>). The folder is git-ignored.</p>
+<h2>How it works</h2>
+<h3>Per-file ingestion (Cloud Workflows)</h3>
+<ac:structured-macro ac:name="info" ac:schema-version="1"><ac:parameter ac:name="title">Diagram: Per-file ingestion sequence</ac:parameter><ac:rich-text-body><p><strong>Per-file ingestion sequence</strong> — editable draw.io diagram attached to this page as <ac:link><ri:attachment ri:filename="ingest-file.drawio" /><ac:plain-text-link-body><![CDATA[ingest-file.drawio]]></ac:plain-text-link-body></ac:link>.</p>
+<p>To show it here: edit the page, replace this panel with <em>Insert → draw.io Diagram</em>, then choose <em>Import</em> (or <em>File → Import from → Device</em>) and select <code>ingest-file.drawio</code>.</p></ac:rich-text-body></ac:structured-macro>
+<p><ac:link><ri:attachment ri:filename="ingest-file.html" /><ac:plain-text-link-body><![CDATA[Interactive per-file ingestion view]]></ac:plain-text-link-body></ac:link></p>
+<p>Eventarc delivers the Pub/Sub message as a CloudEvent to workflow <code>dfa-ingest-file</code>. The <code>main</code> block runs these steps:</p>
+<ol>
+<li><strong>Filter.</strong> It returns <code>skipped</code> for any event type other than <code>OBJECT_FINALIZE</code>, and for any object outside <code>landing/</code> or ending in <code>/</code> (<code>workflows/ingest_file.yaml:32-54</code>).</li>
+<li><strong>Claim.</strong> <code>claim_delivery</code> creates <code>claims/&lt;bucket&gt;/&lt;object&gt;@&lt;generation&gt;</code> in the Dataflow bucket with <code>ifGenerationMatch=0</code>. A second delivery gets HTTP 412 and exits before writing anything (<code>workflows/ingest_file.yaml:168-200</code>). Claims expire after 8 days through a bucket lifecycle rule, which outlives Pub/Sub's 7-day redelivery window (<code>infra/storage.tf:33-42</code>).</li>
+<li><strong>Register.</strong> <code>register_job</code> generates a UUID <code>job_id</code> and counts earlier attempts for the same <code>file_path</code> and generation. It inserts <code>IN_PROGRESS</code>, or <code>DUPLICATE_SKIPPED</code> if that generation already succeeded. All parameters are STRING and are cast in SQL (<code>workflows/ingest_file.yaml:203-287</code>). The <code>bq_query</code> helper calls the BigQuery REST API with named parameters (<code>workflows/ingest_file.yaml:730-776</code>).</li>
+<li><strong>Acquire a slot.</strong> <code>acquire_slot</code> tries to create <code>locks/dataflow-slot-&lt;n&gt;</code> for each <code>n &lt; DFA_MAX_CONCURRENT_JOBS</code>. If every slot is held, it sleeps 60 s and tries again. A lock older than 7,200 s is deleted as abandoned (<code>workflows/ingest_file.yaml:290-381</code>).</li>
+<li><strong>Launch and poll.</strong> It calls <code>flexTemplates:launch</code> with <code>maxWorkers: 1</code> and the pipeline parameters (<code>workflows/ingest_file.yaml:89-123</code>). <code>wait_for_dataflow</code> then polls <code>jobs.get</code> every 60 s, up to 60 times, before returning <code>POLL_TIMEOUT</code> (<code>workflows/ingest_file.yaml:406-438</code>). Any launch or poll exception becomes <code>LAUNCH_OR_POLL_FAILED</code> (<code>workflows/ingest_file.yaml:134-140</code>).</li>
+<li><strong>Release.</strong> The lock is deleted whatever the outcome (<code>workflows/ingest_file.yaml:142-150</code>, <code>workflows/ingest_file.yaml:384-403</code>).</li>
+<li><strong>Finalize.</strong> <code>finalize_job</code> reads the status Dataflow wrote. It forces <code>FAILED</code> with <code>error_code = 'DATAFLOW_JOB_FAILED'</code> if the job did not end <code>JOB_STATE_DONE</code>, or if the row is still <code>IN_PROGRESS</code>. It copies the file to <code>archive/</code> (SUCCESS) or <code>invalid/</code> (anything else), deletes the original, and records <code>final_file_path</code>. For FAILED or REJECTED it publishes the error event. A FAILED job also fails the execution (<code>workflows/ingest_file.yaml:441-567</code>).</li>
+<li><strong>Publish.</strong> <code>publish_failure</code> assembles the job row, failed checks (with details truncated to 2,000 chars), up to the tail of Dataflow error messages, console links and ready-to-run audit SQL. It publishes all of that to <code>dfa-ingest-errors</code> with attributes <code>status</code>, <code>error_code</code>, <code>job_id</code>, <code>job_name</code> and <code>file_name</code> (<code>workflows/ingest_file.yaml:570-727</code>).</li>
+</ol>
+<h3>Job status lifecycle</h3>
+<ac:structured-macro ac:name="info" ac:schema-version="1"><ac:parameter ac:name="title">Diagram: Job status lifecycle</ac:parameter><ac:rich-text-body><p><strong>Job status lifecycle</strong> — editable draw.io diagram attached to this page as <ac:link><ri:attachment ri:filename="job-status.drawio" /><ac:plain-text-link-body><![CDATA[job-status.drawio]]></ac:plain-text-link-body></ac:link>.</p>
+<p>To show it here: edit the page, replace this panel with <em>Insert → draw.io Diagram</em>, then choose <em>Import</em> (or <em>File → Import from → Device</em>) and select <code>job-status.drawio</code>.</p></ac:rich-text-body></ac:structured-macro>
+<p><ac:link><ri:attachment ri:filename="job-status.html" /><ac:plain-text-link-body><![CDATA[Interactive job status view]]></ac:plain-text-link-body></ac:link></p>
+<p><code>file_audit.job_metadata.status</code> moves from <code>IN_PROGRESS</code> to one of four terminal values:</p>
+<ul>
+<li>The workflow writes <code>IN_PROGRESS</code> or <code>DUPLICATE_SKIPPED</code> at registration (<code>workflows/ingest_file.yaml:231-242</code>).</li>
+<li>The Dataflow <code>FinalizeJobMetadata</code> MERGE writes the outcome. It is <code>REJECTED</code> if any pre-load check is blocking (error code = the first failed check's name), <code>FAILED</code> / <code>RECON_MISMATCH</code> if reconciliation failed or did not run, and <code>SUCCESS</code> otherwise (<code>dataflow-job/pipeline/transforms/audit.py:74-110</code>).</li>
+<li>The workflow can still override the result to <code>FAILED</code> afterwards (<code>workflows/ingest_file.yaml:462-481</code>).</li>
+</ul>
+<p><code>job_metadata</code> is written only with DML (INSERT, UPDATE or MERGE), never with streaming inserts, so rows can always be updated (<code>dataflow-job/pipeline/transforms/audit.py:113-117</code>). For a manual run the MERGE inserts the row itself, with <code>service_name = 'dataflow'</code> (<code>dataflow-job/pipeline/transforms/audit.py:171-179</code>).</p>
+<p>A FAILED or REJECTED file is not final. Re-uploading a fixed file, or a df-agent <code>RETRY_FILE</code> copy from <code>invalid/</code> back to <code>landing/</code>, creates a new object generation and therefore a new job.</p>
+<h3>Beam pipeline: validate, gate, load, reconcile</h3>
+<ac:structured-macro ac:name="info" ac:schema-version="1"><ac:parameter ac:name="title">Diagram: Beam pipeline dataflow</ac:parameter><ac:rich-text-body><p><strong>Beam pipeline dataflow</strong> — editable draw.io diagram attached to this page as <ac:link><ri:attachment ri:filename="beam-pipeline.drawio" /><ac:plain-text-link-body><![CDATA[beam-pipeline.drawio]]></ac:plain-text-link-body></ac:link>.</p>
+<p>To show it here: edit the page, replace this panel with <em>Insert → draw.io Diagram</em>, then choose <em>Import</em> (or <em>File → Import from → Device</em>) and select <code>beam-pipeline.drawio</code>.</p></ac:rich-text-body></ac:structured-macro>
+<p><ac:link><ri:attachment ri:filename="beam-pipeline.html" /><ac:plain-text-link-body><![CDATA[Interactive Beam pipeline view]]></ac:plain-text-link-body></ac:link></p>
+<p><code>main.py</code> parses options, loads the contracts and builds the graph (<code>dataflow-job/main.py:14-44</code>). The graph uses only Beam transforms. Side inputs carry shared state (<code>dataflow-job/pipeline/pipeline.py:24-126</code>).</p>
+<ul>
+<li><strong>Structure checks.</strong> <code>ValidateFileStructure</code> reads only the first line and the last 64 KiB of the file. It emits <code>contract_match</code>, <code>file_name</code> and <code>header</code> results, plus a <code>FileMeta</code> side input that carries the matched contract, the header, the trailer and the trailer count (<code>dataflow-job/pipeline/transforms/file_checks.py:14-61</code>).</li>
+<li><strong>Parse.</strong> <code>ReadFromText(skip_header_lines=1)</code> → <code>IsDataLine</code> drops blank lines and the trailer → <code>ParseRecord</code> splits each line on the contract delimiter. A wrong field count is tagged <code>delimiter_error</code>, a NOT_NULL or type failure is tagged <code>type_error</code>, and valid rows get the lineage columns (<code>dataflow-job/pipeline/transforms/parse.py:6-38</code>).</li>
+<li><strong>Content checks.</strong> <code>BuildContentChecks</code> runs once, after the row counts and error samples are aggregated, and emits <code>delimiter</code>, <code>trailer</code> and <code>data_type</code> results (<code>dataflow-job/pipeline/transforms/file_checks.py:76-85</code>). The rules themselves are in <code>dataflow-job/pipeline/checks.py:66-243</code>.</li>
+<li><strong>Gate and load.</strong> <code>AllChecksPassed</code> combines every pre-load result into <code>file_ok</code> (<code>dataflow-job/pipeline/transforms/combiners.py:37-50</code>). <code>LoadToTargetTable</code> filters on it and writes with <code>FILE_LOADS</code>, <code>CREATE_NEVER</code> and <code>WRITE_APPEND</code>. The destination table and schema come from the contract side input (<code>dataflow-job/pipeline/transforms/load.py:5-33</code>).</li>
+<li><strong>Reconcile.</strong> <code>ReconcileCounts</code> waits on every load and copy job, then compares the file's data rows, the trailer count and <code>COUNT(*) WHERE _job_id = @job_id</code>. It is SKIPPED for rejected files (<code>dataflow-job/pipeline/transforms/recon.py:6-47</code>, <code>dataflow-job/pipeline/checks.py:245-270</code>).</li>
+<li><strong>Audit.</strong> Every result is streamed into <code>validation_metadata</code>, with JSON columns sent as strings (<code>dataflow-job/pipeline/transforms/audit.py:13-71</code>). <code>FinalizeJobMetadata</code> then MERGEs the final status and counts (<code>dataflow-job/pipeline/transforms/audit.py:113-208</code>).</li>
+</ul>
+<h3>Incident agent (df-agent)</h3>
+<ac:structured-macro ac:name="info" ac:schema-version="1"><ac:parameter ac:name="title">Diagram: df-agent incident graph</ac:parameter><ac:rich-text-body><p><strong>df-agent incident graph</strong> — editable draw.io diagram attached to this page as <ac:link><ri:attachment ri:filename="agent-incident.drawio" /><ac:plain-text-link-body><![CDATA[agent-incident.drawio]]></ac:plain-text-link-body></ac:link>.</p>
+<p>To show it here: edit the page, replace this panel with <em>Insert → draw.io Diagram</em>, then choose <em>Import</em> (or <em>File → Import from → Device</em>) and select <code>agent-incident.drawio</code>.</p></ac:rich-text-body></ac:structured-macro>
+<p><ac:link><ri:attachment ri:filename="agent-incident.html" /><ac:plain-text-link-body><![CDATA[Interactive df-agent view]]></ac:plain-text-link-body></ac:link></p>
+<p><strong>Listener.</strong> <code>runner.py listen</code> pulls one message at a time and extends its ack deadline to 600 s while the graph runs. It acks after the run, and on an exception resets the deadline to 120 s so the message is redelivered. A message it cannot parse is saved to <code>actions/_unparseable/</code> and acked (<code>df-agent/incident_core/runner.py:79-119</code>). <code>replay</code> rebuilds the event from the audit tables (<code>df-agent/domains/dataflow_ingest/pack.py:54-64</code>).</p>
+<p><strong>Graph</strong> (<code>df-agent/incident_core/graph.py:163-201</code>):</p>
+<ul>
+<li><strong>intake</strong> skips incidents already recorded as handled. It closes <code>SUCCESS</code>, <code>IN_PROGRESS</code> and <code>DUPLICATE_SKIPPED</code> jobs as <code>NO_INCIDENT</code> and sets the severity: SEV2 for FAILED, SEV3 for REJECTED, one level higher after 3 or more failures in 24 h (<code>df-agent/incident_core/graph.py:76-96</code>, <code>df-agent/domains/dataflow_ingest/pack.py:66-90</code>).</li>
+<li><strong>audit_agent</strong> and <strong>gcp_agent</strong> run in parallel. Each runs a fixed set of default lookups, and an LLM may choose up to 4 extra read-only tools only when the investigator asks (<code>df-agent/incident_core/agents/gatherer.py:65-148</code>). Tools are typed functions with fixed queries, not a shell (<code>df-agent/domains/dataflow_ingest/tools_gcp.py:62-226</code>).</li>
+<li><strong>log_analyst</strong> builds a deterministic error digest, matches <code>brain/signatures.yaml</code>, and runs verification calls for the top signature. A CONFIRMED verification raises its confidence to at least 0.97; a REFUTED one caps it at 0.5 (<code>df-agent/incident_core/agents/log_analyst.py:24-103</code>).</li>
+<li><strong>investigator</strong> sets the root cause to one of TRANSIENT_INFRA, DATA_QUALITY, CODE_BUG, CONFIG or UNKNOWN. A signature at or above <code>signature_override_confidence</code> (0.85) decides the category, and the LLM only writes the explanation. Without the LLM it falls back to the signature, or to UNKNOWN. It can request more evidence up to <code>limits.evidence_rounds</code> times (<code>df-agent/incident_core/agents/investigator.py:50-153</code>).</li>
+<li><strong>action_planner</strong> maps the category to its playbook actions (<code>df-agent/brain/playbooks.yaml:1-40</code>) and fills in parameters. For <code>RETRY_FILE</code> these are a copy from <code>invalid/...</code> back to the original <code>landing/...</code> name (<code>df-agent/domains/dataflow_ingest/pack.py:105-118</code>). A <code>PROPOSE_CODE_CHANGE</code> action routes through <strong>code_reviewer</strong> (<code>git apply --check</code> only).</li>
+<li><strong>action_reviewer</strong> runs <code>PolicyEngine.evaluate</code> first, which is authoritative. Unknown types, forbidden patterns (<code>delete</code>, <code>drop</code>, <code>truncate</code>, <code>rm</code>, <code>mv</code>, <code>--force</code>, …) and bad parameters are REJECTED, and non-executable types become REPORT. <code>RETRY_FILE</code> is AUTO_APPROVED only when all of these hold: the job FAILED, the category is TRANSIENT_INFRA, confidence ≥ 0.7, fewer than 2 retries in 24 h, the source exists, the destination does not exist, and no stuck ingest jobs remain. Otherwise it is NEEDS_HUMAN if fewer than 5 retries were made (<code>df-agent/brain/policies.yaml:12-57</code>, <code>df-agent/incident_core/policy.py:64-92</code>). The LLM review may only downgrade AUTO_APPROVED to NEEDS_HUMAN (<code>df-agent/incident_core/agents/reviewers.py:81-110</code>).</li>
+<li><strong>executor</strong> runs only AUTO_APPROVED actions. <code>RETRY_FILE</code> is a GCS rewrite with <code>if_generation_match=0</code> on the landing bucket and has no delete path (<code>df-agent/domains/dataflow_ingest/executor.py:8-30</code>). The final status is AUTO_RESOLVED or AWAITING_HUMAN (<code>df-agent/incident_core/graph.py:109-135</code>).</li>
+<li><strong>report_writer</strong> and <strong>record</strong> write <code>actions/&lt;id&gt;/</code>. They append a row to <code>file_audit.agent_incidents</code>, mirrored to <code>.state/incidents.jsonl</code>. If the BigQuery write fails, the local mirror still records the incident (<code>df-agent/incident_core/store.py:84-112</code>).</li>
+</ul>
+<p><strong>Human approval.</strong> <code>make agent-approve</code> re-checks each NEEDS_HUMAN action against fresh policy facts, asks <code>Execute? [y/N]</code>, then records <code>APPROVED_BY_HUMAN</code> (<code>df-agent/incident_core/runner.py:126-175</code>).</p>
+<h3>Error handling, retries and concurrency</h3>
+<ul>
+<li><strong>Pub/Sub at-least-once delivery:</strong> absorbed by the claim object and the <code>DUPLICATE_SKIPPED</code> check (<code>workflows/ingest_file.yaml:56-71</code>).</li>
+<li><strong>Eventarc:</strong> retries if it cannot create the execution. Inside the workflow, only <code>jobs.get</code> uses <code>http.default_retry</code> (<code>workflows/ingest_file.yaml:415-423</code>).</li>
+<li><strong>Moving the file:</strong> a 404 while moving means it was already moved, so it is ignored (<code>workflows/ingest_file.yaml:516-523</code>). A failure to publish the error event is logged and does not change the outcome (<code>workflows/ingest_file.yaml:543-550</code>).</li>
+<li><strong>Concurrency:</strong> limited to <code>DFA_MAX_CONCURRENT_JOBS</code> Dataflow jobs. Files queue inside their own workflow executions, so <code>duration_seconds</code> includes the time spent waiting for a slot.</li>
+<li><strong>Agent:</strong> handles one incident at a time, and uses a SQLite checkpointer per run (<code>df-agent/incident_core/graph.py:204-209</code>).</li>
+</ul>
+<h2>Deployment and operations</h2>
+<ul>
+<li><strong>Infrastructure and workflow:</strong> <code>make gcs-setup</code> (<code>terraform apply -auto-approve</code>, <code>Makefile:66-67</code>). The workflow YAML is deployed by Terraform from <code>workflows/ingest_file.yaml</code> (<code>infra/workflows.tf:11</code>), so edit the YAML and rerun <code>make gcs-setup</code> to release a change. There is no CI pipeline in the repository.</li>
+<li><strong>Pipeline code or contracts:</strong> <code>make docker</code> rebuilds and pushes <code>gcs-to-bq:latest</code>, then <code>make template</code> rewrites <code>gs://&lt;dataflow bucket&gt;/templates/gcs_to_bq.json</code> (<code>Makefile:75-86</code>). Run <code>make template</code> alone after changing only <code>metadata.json</code>. The image tag is always <code>latest</code>, so rolling back means rebuilding from an earlier commit.</li>
+<li><strong>Environments:</strong> one project per <code>PROJECT_ID</code>. Terraform state is local (<code>infra/*.tfstate</code>, git-ignored), so run Terraform from one machine, or move the state to a remote backend before sharing.</li>
+<li><strong>Health check:</strong> <code>make gcs-check</code> is read-only and exits 1 on any failure (<code>Makefile:69-70</code>).</li>
+<li><strong>Logs and history:</strong>
+<ul>
+<li>Workflow executions log errors only (<code>call_log_level = LOG_ERRORS_ONLY</code>, <code>infra/workflows.tf:12</code>).</li>
+<li><code>make executions</code> lists recent runs, and each <code>job_metadata</code> row stores the execution id in <code>service_revision</code>.</li>
+<li>Dataflow job logs and errors are in the Dataflow console. The error event carries the console URL.</li>
+<li>Agent traces are in <code>df-agent/actions/&lt;id&gt;/trace.md</code>.</li>
+</ul></li>
+<li><strong>Alerts:</strong> no Cloud Monitoring alerts are defined. The error topic and <code>df-agent</code> are the alerting path.</li>
+<li><strong>Scaling:</strong> raise <code>max_concurrent_jobs</code> (for example <code>make gcs-setup MAX_JOBS=2</code>) only after raising the regional <code>IN_USE_ADDRESSES</code> quota. Each job needs about 2 IPs.</li>
+<li><strong>Backup and restore:</strong> none is configured. Buckets use <code>force_destroy</code> and datasets use <code>delete_contents_on_destroy</code>, so <code>make gcs-destroy</code> deletes every file and row (<code>infra/storage.tf:7-14</code>, <code>infra/bigquery.tf:1-15</code>).</li>
+<li><strong>Cost:</strong> about $0 when idle. About $0.02 per file in Dataflow, and about 45 Workflows steps per file (<code>project.md</code> §12).</li>
+</ul>
+<ac:structured-macro ac:name="warning" ac:schema-version="1"><ac:parameter ac:name="title">Warning</ac:parameter><ac:rich-text-body><p><code>make gcs-destroy</code> and <code>make bq-clean-up</code> delete data irreversibly. <code>gcs-destroy</code> force-deletes both buckets and both datasets. <code>bq-clean-up</code> truncates every audit and target table.</p></ac:rich-text-body></ac:structured-macro>
+<h2>Troubleshooting</h2>
+<table data-layout="default"><tbody>
+<tr><th>Symptom</th><th>Likely cause</th><th>How to confirm</th><th>Fix</th></tr>
+<tr><td><code>make gcs-setup</code> fails on the Eventarc trigger or the Pub/Sub token-creator binding in a new project</td><td>The Eventarc or Pub/Sub service agent does not exist yet</td><td>The error names <code>service-&lt;number&gt;@gcp-sa-pubsub</code> or Eventarc</td><td>Wait a minute and rerun <code>make gcs-setup</code>. It continues where it stopped.</td></tr>
+<tr><td><code>No terraform outputs found - run 'make gcs-setup' first.</code></td><td>No local Terraform state</td><td><code>terraform -chdir=infra output</code> is empty</td><td>Run <code>make gcs-setup</code> from this checkout (<code>Makefile:117-118</code>)</td></tr>
+<tr><td><code>make docker</code> fails</td><td>Docker Desktop not running, or no <code>artifactregistry.writer</code></td><td><code>docker info</code>, and check the IAM roles on your account</td><td>Start Docker, or grant the role</td></tr>
+<tr><td>A file stays <code>IN_PROGRESS</code> for a long time</td><td>It is waiting for a Dataflow slot (one job at a time, about 6 min each)</td><td><code>make executions</code> shows several ACTIVE executions, and <code>gs://&lt;dataflow bucket&gt;/locks/</code> holds a slot object</td><td>Wait. Locks older than 2 h are cleared automatically (<code>workflows/ingest_file.yaml:339-358</code>).</td></tr>
+<tr><td>Workflow execution returns <code>skipped: true, reason: duplicate delivery</code></td><td>Pub/Sub redelivered the same message</td><td>The claim object exists under <code>claims/</code></td><td>Nothing to do. This is by design.</td></tr>
+<tr><td>Status <code>DUPLICATE_SKIPPED</code></td><td>That file generation already loaded successfully</td><td>An earlier <code>SUCCESS</code> row has the same <code>file_path</code> and <code>file_generation</code></td><td>Upload the file again to create a new generation, if you really want to reload it</td></tr>
+<tr><td>Status <code>REJECTED</code>, error code <code>FILE_NAME</code>, <code>HEADER</code>, <code>TRAILER</code>, <code>DELIMITER</code>, <code>DATA_TYPE</code> or <code>CONTRACT_MATCH</code></td><td>The file breaks its contract</td><td><code>SELECT * FROM file_audit.validation_metadata WHERE job_id = '&lt;id&gt;'</code> shows the expected and actual values and up to 10 sample rows</td><td>Fix the file and re-upload it to <code>landing/</code>. See <code>df-agent/brain/runbooks/&lt;check&gt;.md</code>.</td></tr>
+<tr><td>Status <code>FAILED</code> with <code>UnicodeDecodeError</code></td><td>The file is not UTF-8 (e.g. Latin-1)</td><td>The Dataflow errors in the error event. df-agent matches the <code>encoding_error</code> signature as CODE_BUG (<code>df-agent/brain/signatures.yaml:99-105</code>).</td><td>Re-encode the file as UTF-8, or change the pipeline to decode it, then <code>make docker</code></td></tr>
+<tr><td>Status <code>FAILED</code> with <code>QUOTA_EXCEEDED</code> / <code>RESOURCE_EXHAUSTED</code></td><td>More concurrent jobs than the IP quota allows (e.g. <code>MAX_JOBS=4</code>)</td><td>Dataflow job messages; the agent's <code>get_quota</code> evidence (<code>df-agent/brain/signatures.yaml:61-66</code>)</td><td>df-agent retries automatically (TRANSIENT_INFRA). Lower <code>MAX_JOBS</code> or raise the quota.</td></tr>
+<tr><td>Status <code>FAILED</code>, error code <code>DATAFLOW_JOB_FAILED</code>, reason <code>LAUNCH_OR_POLL_FAILED</code></td><td>Template spec or image missing, or a permission problem</td><td><code>status_reason</code> holds the launch error. <code>make gcs-check</code> warns about the template.</td><td><code>make docker</code>, then retry with <code>make agent-approve INCIDENT=&lt;id&gt;</code> or re-upload</td></tr>
+<tr><td>Status <code>FAILED</code>, error code <code>RECON_MISMATCH</code></td><td>Rows in BigQuery ≠ file rows ≠ trailer count</td><td><code>recon_row_count</code> details in <code>validation_metadata</code></td><td>See <code>df-agent/brain/runbooks/RECON_MISMATCH.md</code></td></tr>
+<tr><td>df-agent logs <code>LLM gave no valid ... falling back</code> or <code>LLM output unavailable</code></td><td>Ollama is not running, or the small model returned invalid JSON</td><td><code>curl http://localhost:11434</code></td><td>Start <code>ollama serve</code>. Classification still works from signatures (<code>df-agent/incident_core/agents/investigator.py:122-131</code>).</td></tr>
+<tr><td>df-agent logs <code>could not record incident in BigQuery (kept locally)</code></td><td>No permission on <code>agent_incidents</code>, or impersonation failed</td><td><code>df-agent/.state/incidents.jsonl</code> has the row</td><td>Check <code>AGENT_OPERATOR</code> and rerun <code>make gcs-setup</code> (<code>df-agent/incident_core/store.py:91-98</code>)</td></tr>
+<tr><td><code>make agent-approve</code> prints <code>BLOCKED by policy now</code></td><td>Facts changed: the destination already exists, the source is gone, or the retry limit is reached</td><td>The printed blockers</td><td>Resolve the blocker manually; the agent will not override policy (<code>df-agent/incident_core/runner.py:140-146</code>)</td></tr>
+<tr><td>Error events pile up in <code>dfa-ingest-errors-sub</code></td><td>The agent is not running</td><td><code>make errors</code></td><td><code>make agent-listen</code>. Messages are kept for 7 days.</td></tr>
+</tbody></table>
+<h2>Source map</h2>
+<table data-layout="default"><tbody>
+<tr><th>Path</th><th>Responsibility</th></tr>
+<tr><td><code>Makefile</code></td><td>Every operator command: infrastructure, image, runs, clean-up, agent</td></tr>
+<tr><td><code>infra/</code></td><td>Terraform: APIs, buckets, Pub/Sub, Eventarc, workflow, BigQuery, IAM, agent identity</td></tr>
+<tr><td><code>infra/bq/*.json</code></td><td>BigQuery table schemas, including <code>agent_incidents</code></td></tr>
+<tr><td><code>workflows/ingest_file.yaml</code></td><td>Per-file orchestration, deployed by Terraform</td></tr>
+<tr><td><code>dataflow-job/main.py</code>, <code>pipeline/pipeline.py</code></td><td>Pipeline entry point and graph</td></tr>
+<tr><td><code>dataflow-job/pipeline/checks.py</code></td><td>Validation rules and type conversion</td></tr>
+<tr><td><code>dataflow-job/pipeline/transforms/</code></td><td>File checks, parse, load, reconcile, audit writers</td></tr>
+<tr><td><code>dataflow-job/contracts/*.yaml</code></td><td>Per-entity data contracts</td></tr>
+<tr><td><code>dataflow-job/tests/</code></td><td>Beam <code>TestPipeline</code> unit tests (<code>make test</code>)</td></tr>
+<tr><td><code>df-agent/incident_core/</code></td><td>Domain-agnostic agent core: graph, agents, policy, signatures, store, report, CLI</td></tr>
+<tr><td><code>df-agent/domains/dataflow_ingest/</code></td><td>Domain pack: event parsing, audit and GCP tools, <code>RETRY_FILE</code> executor</td></tr>
+<tr><td><code>df-agent/brain/</code></td><td>Signatures, playbooks, policies, runbooks, system prompt</td></tr>
+<tr><td><code>df-agent/tests/</code></td><td>Policy, signature, error and graph scenario tests (<code>make agent-test</code>)</td></tr>
+<tr><td><code>scripts/gcs_check.sh</code></td><td>Read-only resource health check</td></tr>
+<tr><td><code>mockdata/</code></td><td>Sample good and bad files, and <code>generate.py</code></td></tr>
+<tr><td><code>dags/</code>, <code>infra/composer.tf</code></td><td>Obsolete Airflow/Composer design, not deployed</td></tr>
+</tbody></table>
+<p>Where to start common changes:</p>
+<ul>
+<li><strong>Add an entity:</strong>
+<ol>
+<li>Add <code>dataflow-job/contracts/&lt;entity&gt;.yaml</code> and <code>infra/bq/&lt;entity&gt;.json</code>.</li>
+<li>Append the entity to <code>target_tables</code> (<code>infra/variables.tf:42-46</code>).</li>
+<li>Run <code>make gcs-setup</code> and <code>make docker</code>.</li>
+</ol></li>
+<li><strong>Add a validation rule:</strong> write it in <code>dataflow-job/pipeline/checks.py</code>, emit it from <code>BuildContentChecks</code> or <code>ValidateFileStructure</code>, and add a test in <code>dataflow-job/tests/test_checks.py</code>.</li>
+<li><strong>Change orchestration:</strong> edit <code>workflows/ingest_file.yaml</code>, then run <code>make gcs-setup</code>.</li>
+<li><strong>Teach the agent a new failure:</strong> add a signature to <code>df-agent/brain/signatures.yaml</code> and a runbook under <code>df-agent/brain/runbooks/</code>, then run <code>make agent-brain-sync</code> and <code>make agent-test</code>.</li>
+<li><strong>Allow a new automatic action:</strong> add it to <code>action_types</code>, <code>param_rules</code> and <code>auto_approve</code> in <code>df-agent/brain/policies.yaml</code>, and implement it in <code>DataflowIngestPack.execute</code> (<code>df-agent/domains/dataflow_ingest/pack.py:133-136</code>).</li>
+</ul>
+<h2>Testing</h2>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make test         # dataflow-job/tests: ValidateAndParse and the checks, DirectRunner, no GCP
+make agent-test   # df-agent/tests: policy matrix, signatures, brain coverage, graph scenarios with fakes
+make agent-eval   # offline replay of recorded incidents; exits non-zero below 100% accuracy]]></ac:plain-text-body></ac:structured-macro>
+<p>The agent tests use fake clients and no LLM (<code>df-agent/tests/fakes.py:1-134</code>). <code>agent-eval</code> reports root-cause accuracy over <code>df-agent/evals/cases/</code> (<code>df-agent/incident_core/runner.py:251-257</code>).</p>

@@ -1,5 +1,7 @@
 # Flex template launcher image. Python version must match the Beam worker SDK container.
-FROM gcr.io/dataflow-templates-base/python312-template-launcher-base
+# Pinned release (the Makefile passes the same value); 20261006+ releases fail to unpack. Override: make docker BASE_IMAGE=...
+ARG BASE_IMAGE=gcr.io/dataflow-templates-base/python312-template-launcher-base:flex_templates_base_image_release_20260901_RC00
+FROM ${BASE_IMAGE}
 
 ARG WORKDIR=/template
 WORKDIR ${WORKDIR}

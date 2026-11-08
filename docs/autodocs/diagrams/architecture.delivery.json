@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "a90df465-ebfa-40cf-9d17-16a269128724",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.json",
+  "output": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/architecture.html",
+  "specification": {
+    "sha256": "cfa854aeedd16b218059ee6dc1de6b644974d3d1e542a0477dcf34ce6eccb993",
+    "bytes": 8202
+  },
+  "artifact": {
+    "sha256": "5ae7a55e8261befc1714b0ad241ea6cb3a04da071404327f316e267d9f78c4eb",
+    "bytes": 866060
+  }
+}

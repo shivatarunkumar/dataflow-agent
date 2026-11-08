@@ -1,0 +1,1100 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "lifecycle",
+  "quality": "showcase",
+  "startedAt": "2026-10-26T18:36:50.765Z",
+  "specification": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.json",
+    "sha256": "db8ff872991752f9d05f6a17ea49ba88d2cda0158dac0b102ad98606253c2d44",
+    "bytes": 5907
+  },
+  "artifact": {
+    "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+    "sha256": "456e14d63274435926ac9e696d3be12a7c93e824211e47d1939cd66bcf89b957",
+    "bytes": 847520
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/usr/local/bin/node",
+        "/Users/tarunnagula/.claude/plugins/cache/autodocs/autodocs/0.1.0/skills/autodocs/bin/engine.mjs",
+        "deliver",
+        "lifecycle",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.json",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "db8ff872991752f9d05f6a17ea49ba88d2cda0158dac0b102ad98606253c2d44",
+          "bytes": 5907
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 1169,
+      "command": [
+        "/usr/local/bin/node",
+        "/Users/tarunnagula/.claude/plugins/cache/autodocs/autodocs/0.1.0/skills/autodocs/bin/engine.mjs",
+        "deliver",
+        "lifecycle",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.json",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "f630fa33-6c3b-4f83-b750-c95e308f6495",
+        "ok": true,
+        "command": "deliver",
+        "type": "lifecycle",
+        "input": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.json",
+        "output": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+        "specification": {
+          "sha256": "db8ff872991752f9d05f6a17ea49ba88d2cda0158dac0b102ad98606253c2d44",
+          "bytes": 5907
+        },
+        "artifact": {
+          "sha256": "456e14d63274435926ac9e696d3be12a7c93e824211e47d1939cd66bcf89b957",
+          "bytes": 847520
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "https://github.com/shivatarunkumar/dataflow-agent",
+          "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391",
+          "references": 10
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 706,
+      "command": [
+        "/usr/local/bin/node",
+        "/Users/tarunnagula/.claude/plugins/cache/autodocs/autodocs/0.1.0/skills/autodocs/bin/engine.mjs",
+        "check",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+        "artifact": {
+          "sha256": "456e14d63274435926ac9e696d3be12a7c93e824211e47d1939cd66bcf89b957",
+          "bytes": 847520
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 5,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 14,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 6.350531107738998,
+            "maxBends": 2,
+            "routesOverSuggestedBends": 0,
+            "maxStretch": 1,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 52,
+            "minInteriorSegmentPx": 82.3,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [
+              {
+                "left": {
+                  "id": "busy",
+                  "from": "in_progress",
+                  "to": "waiting",
+                  "label": "all slots busy",
+                  "collectionIndex": 3,
+                  "artifactIndex": 4
+                },
+                "right": {
+                  "id": "reject",
+                  "from": "running",
+                  "to": "rejected",
+                  "label": "pre-load check failed",
+                  "collectionIndex": 5,
+                  "artifactIndex": 6
+                },
+                "point": [
+                  849.3,
+                  162
+                ]
+              },
+              {
+                "left": {
+                  "id": "busy",
+                  "from": "in_progress",
+                  "to": "waiting",
+                  "label": "all slots busy",
+                  "collectionIndex": 3,
+                  "artifactIndex": 4
+                },
+                "right": {
+                  "id": "fail",
+                  "from": "running",
+                  "to": "failed",
+                  "label": "not DONE / recon fail",
+                  "collectionIndex": 6,
+                  "artifactIndex": 7
+                },
+                "point": [
+                  723.0000000000001,
+                  162.00000000000003
+                ]
+              },
+              {
+                "left": {
+                  "id": "busy",
+                  "from": "in_progress",
+                  "to": "waiting",
+                  "label": "all slots busy",
+                  "collectionIndex": 3,
+                  "artifactIndex": 4
+                },
+                "right": {
+                  "id": "retry",
+                  "from": "failed",
+                  "to": "landed",
+                  "label": "df-agent RETRY_FILE",
+                  "collectionIndex": 8,
+                  "artifactIndex": 9
+                },
+                "point": [
+                  557.8000000000001,
+                  144
+                ]
+              },
+              {
+                "left": {
+                  "id": "reject",
+                  "from": "running",
+                  "to": "rejected",
+                  "label": "pre-load check failed",
+                  "collectionIndex": 5,
+                  "artifactIndex": 6
+                },
+                "right": {
+                  "id": "fail",
+                  "from": "running",
+                  "to": "failed",
+                  "label": "not DONE / recon fail",
+                  "collectionIndex": 6,
+                  "artifactIndex": 7
+                },
+                "point": [
+                  849.3000000000002,
+                  144.00000000000003
+                ],
+                "sharedNode": "running"
+              },
+              {
+                "left": {
+                  "id": "reject",
+                  "from": "running",
+                  "to": "rejected",
+                  "label": "pre-load check failed",
+                  "collectionIndex": 5,
+                  "artifactIndex": 6
+                },
+                "right": {
+                  "id": "retry",
+                  "from": "failed",
+                  "to": "landed",
+                  "label": "df-agent RETRY_FILE",
+                  "collectionIndex": 8,
+                  "artifactIndex": 9
+                },
+                "point": [
+                  696.9999999999999,
+                  180
+                ]
+              }
+            ],
+            "detours": []
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": null,
+            "requestedTargetMet": null,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "landed"
+            },
+            "minimumSourceTextPx": 9,
+            "minimumProjectedTextPx": 6.350531107738998,
+            "semanticTextCount": 26
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "f630fa33-6c3b-4f83-b750-c95e308f6495"
+      }
+    },
+    "browser-check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 11869,
+      "command": [
+        "/usr/local/bin/node",
+        "/Users/tarunnagula/.claude/plugins/cache/autodocs/autodocs/0.1.0/skills/autodocs/bin/engine.mjs",
+        "browser-check",
+        "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "pass",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "f630fa33-6c3b-4f83-b750-c95e308f6495",
+        "artifact": {
+          "path": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.html",
+          "sha256": "456e14d63274435926ac9e696d3be12a7c93e824211e47d1939cd66bcf89b957",
+          "bytes": 847520
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "available",
+          "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        },
+        "diagnostics": [],
+        "containment": {
+          "status": "pass",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "theme": "light",
+              "innerWidth": 1440,
+              "innerHeight": 900,
+              "scrollWidth": 1440,
+              "scrollHeight": 900,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1376,
+              "diagramWidth": 1346,
+              "pageComposition": {
+                "bodyPaddingPx": 12,
+                "headerPx": 52,
+                "diagramChromePx": 78,
+                "svgPx": 431,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "theme": "light",
+              "innerWidth": 1600,
+              "innerHeight": 1000,
+              "scrollWidth": 1600,
+              "scrollHeight": 1000,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1536,
+              "diagramWidth": 1506,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 482,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "theme": "light",
+              "innerWidth": 1920,
+              "innerHeight": 1080,
+              "scrollWidth": 1920,
+              "scrollHeight": 1080,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1856,
+              "diagramWidth": 1826,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 585,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "theme": "light",
+              "innerWidth": 2048,
+              "innerHeight": 1320,
+              "scrollWidth": 2048,
+              "scrollHeight": 1320,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1920,
+              "diagramWidth": 1870,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 68,
+                "diagramChromePx": 94,
+                "svgPx": 599,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 44,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            }
+          ]
+        },
+        "themeStates": {
+          "status": "pass",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            }
+          ]
+        },
+        "readability": {
+          "status": "pass",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "theme": "light",
+              "innerWidth": 1440,
+              "innerHeight": 900,
+              "scrollWidth": 1440,
+              "scrollHeight": 900,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1376,
+              "diagramWidth": 1346,
+              "pageComposition": {
+                "bodyPaddingPx": 12,
+                "headerPx": 52,
+                "diagramChromePx": 78,
+                "svgPx": 431,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "theme": "light",
+              "innerWidth": 1600,
+              "innerHeight": 1000,
+              "scrollWidth": 1600,
+              "scrollHeight": 1000,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1536,
+              "diagramWidth": 1506,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 482,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "theme": "light",
+              "innerWidth": 1920,
+              "innerHeight": 1080,
+              "scrollWidth": 1920,
+              "scrollHeight": 1080,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1856,
+              "diagramWidth": 1826,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 585,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "theme": "light",
+              "innerWidth": 2048,
+              "innerHeight": 1320,
+              "scrollWidth": 2048,
+              "scrollHeight": 1320,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1920,
+              "diagramWidth": 1870,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 68,
+                "diagramChromePx": 94,
+                "svgPx": 599,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 44,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            }
+          ]
+        },
+        "viewerChrome": {
+          "status": "pass",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "theme": "light",
+              "innerWidth": 1440,
+              "innerHeight": 900,
+              "scrollWidth": 1440,
+              "scrollHeight": 900,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1376,
+              "diagramWidth": 1346,
+              "pageComposition": {
+                "bodyPaddingPx": 12,
+                "headerPx": 52,
+                "diagramChromePx": 78,
+                "svgPx": 431,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "theme": "light",
+              "innerWidth": 1600,
+              "innerHeight": 1000,
+              "scrollWidth": 1600,
+              "scrollHeight": 1000,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1536,
+              "diagramWidth": 1506,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 482,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "theme": "light",
+              "innerWidth": 1920,
+              "innerHeight": 1080,
+              "scrollWidth": 1920,
+              "scrollHeight": 1080,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1856,
+              "diagramWidth": 1826,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 585,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "theme": "light",
+              "innerWidth": 2048,
+              "innerHeight": 1320,
+              "scrollWidth": 2048,
+              "scrollHeight": 1320,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1920,
+              "diagramWidth": 1870,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 68,
+                "diagramChromePx": 94,
+                "svgPx": 599,
+                "cardsPx": 0,
+                "viewBoxHeight": 422
+              },
+              "viewBoxWidth": 1318,
+              "minimumProjectedNodeTextPx": 9,
+              "minimumProjectedNonEdgeTextPx": 9,
+              "minimumProjectedEdgeTextPx": 10,
+              "minimumProjectedNodeText": "landing/<file>",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "landed"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 44,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            }
+          ]
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "job-status.browser-check.json",
+          "files": []
+        }
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  },
+  "diagnostics": [],
+  "evidence": {
+    "receipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.finalize.json",
+    "summaryReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.finalize-summary.json",
+    "browserCheckReceipt": "/Users/tarunnagula/Documents/workspace/dataflow-agent/docs/autodocs/diagrams/job-status.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "finishedAt": "2026-10-26T18:37:05.111Z",
+  "durationMs": 14365,
+  "update": {
+    "status": "unavailable",
+    "installedVersion": null,
+    "availableVersion": null,
+    "releaseNotes": null,
+    "checkedAt": null,
+    "source": null,
+    "noticeRequired": false,
+    "noticeText": null,
+    "reason": "disabled"
+  }
+}
