@@ -2,7 +2,7 @@ PROJECT_ID ?= bigquerytarun
 REGION     ?= europe-west2
 PREFIX     ?= dfa
 
-# Who may impersonate the df-agent SA when running the agent locally (defaults to your gcloud account).
+# Who may impersonate the df-agent SA when running the agent (Sherlock repo) locally (defaults to your gcloud account).
 AGENT_OPERATOR ?= $(shell gcloud config get-value account 2>/dev/null)
 
 TF      := terraform -chdir=infra
@@ -12,7 +12,7 @@ MAX_JOBS ?= 1
 TF_BASE_VARS := -var project_id=$(PROJECT_ID) -var region=$(REGION) -var prefix=$(PREFIX) \
                 -var max_concurrent_jobs=$(MAX_JOBS) \
                 $(if $(AGENT_OPERATOR),-var agent_operator=user:$(AGENT_OPERATOR),)
-# Composer (~$0.80-1.00/hour) keeps its current state unless COMPOSER=true|false is given, so `make gcs-setup`
+# Composer (~$0.80-1.00/hour) keeps its current state unless COMPOSER=true|false is given, so `make gcp-setup`
 # never creates or deletes it by accident. make airflow-up / airflow-down switch it explicitly.
 COMPOSER ?= $(if $(call tf_out,composer_env),true,false)
 TF_VARS  = $(TF_BASE_VARS) -var enable_composer=$(COMPOSER)
@@ -20,8 +20,6 @@ COMPOSER_NAME := $(PREFIX)-composer
 COMPOSER_RUN   = gcloud composer environments run $(COMPOSER_NAME) --location $(REGION) --project $(PROJECT_ID)
 VENV    := .venv
 PYTHON  := $(abspath $(VENV)/bin/python)
-AGENT_VENV   := .venv-agent
-AGENT_PYTHON := $(abspath $(AGENT_VENV)/bin/python)
 
 # Flex template launcher base image, pinned: the 20261006, 20261026 and 20261102 releases have a layer Docker can't
 # unpack ("invalid tar header"), locally and in Cloud Build. Override with BASE_IMAGE=... to try a newer release.
@@ -40,20 +38,12 @@ AUDIT_DATASET   = $(call tf_out,audit_dataset)
 TARGET_DATASET  = $(call tf_out,target_dataset)
 TARGET_TABLES   = $(call tf_out,target_tables)
 ERROR_SUB       = $(call tf_out,error_subscription)
-AGENT_SA        = $(call tf_out,agent_sa)
-
-# Environment for df-agent (expanded into df-agent/config.yaml).
-AGENT_ENV = DFA_PROJECT_ID=$(PROJECT_ID) DFA_REGION=$(REGION) DFA_LANDING_BUCKET=$(LANDING_BUCKET) \
-            DFA_DATAFLOW_BUCKET=$(DATAFLOW_BUCKET) DFA_ERROR_SUBSCRIPTION=$(ERROR_SUB) \
-            DFA_AUDIT_DATASET=$(AUDIT_DATASET) DFA_COMPOSER_ENV=$(COMPOSER_NAME) DFA_AGENT_SA=$(AGENT_SA) \
-            DFA_DATAFLOW_SA=$(DATAFLOW_SA)
 
 # FILE=customer_20261015.csv uploads mockdata/<FILE> to manual/ (no Pub/Sub trigger); FILE=gs://... is used as-is.
 FILE_URI = $(if $(filter gs://%,$(FILE)),$(FILE),gs://$(LANDING_BUCKET)/manual/$(notdir $(FILE)))
 
-.PHONY: help venv test mockdata tf-init plan gcs-setup gcs-check gcs-destroy docker template run-dataflow run-local upload-mock bq-clean-up errors \
-        airflow-up airflow-down dags-deploy dags-test airflow-ui airflow-runs airflow-admin airflow-test-launch-failure \
-        agent-venv agent-pdf-setup agent-test agent-listen agent-once agent-replay agent-approve agent-brain-sync agent-eval agent-eval-add agent-graph
+.PHONY: help venv test mockdata tf-init plan gcp-setup gcp-check gcs-destroy docker template run-dataflow run-local upload-mock bq-clean-up errors \
+        airflow-up airflow-down dags-deploy dags-test airflow-ui airflow-runs airflow-admin airflow-test-launch-failure
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -75,10 +65,10 @@ tf-init:
 plan: tf-init ## terraform plan
 	$(TF) plan $(TF_VARS)
 
-gcs-setup: tf-init ## Create/update all resources; Composer keeps its current state (see airflow-up); run `make docker` after
+gcp-setup: tf-init ## Create/update all resources; Composer keeps its current state (see airflow-up); run `make docker` after
 	$(TF) apply -auto-approve $(TF_VARS)
 
-gcs-check: ## Verify every resource exists and is active (exit 1 on any failure)
+gcp-check: ## Verify every resource exists and is active (exit 1 on any failure)
 	PROJECT_ID=$(PROJECT_ID) REGION=$(REGION) bash scripts/gcs_check.sh
 
 gcs-destroy: tf-init ## Destroy all resources (buckets/datasets are force-deleted)
@@ -127,7 +117,7 @@ upload-mock: ## Drop all mock files into landing/ (triggers Pub/Sub -> Airflow -
 	gcloud storage cp mockdata/*.csv mockdata/*.xlsx gs://$(LANDING_BUCKET)/landing/
 
 bq-clean-up: ## TRUNCATE audit + target tables (asks to confirm; CONFIRM=yes skips the prompt)
-	@test -n "$(AUDIT_DATASET)" || { echo "No terraform outputs found - run 'make gcs-setup' first."; exit 1; }
+	@test -n "$(AUDIT_DATASET)" || { echo "No terraform outputs found - run 'make gcp-setup' first."; exit 1; }
 	@tables="$(AUDIT_DATASET).job_metadata $(AUDIT_DATASET).validation_metadata"; \
 	for t in $$(echo "$(TARGET_TABLES)" | tr ',' ' '); do tables="$$tables $(TARGET_DATASET).$$t"; done; \
 	echo "This will delete ALL rows from these tables in $(PROJECT_ID):"; \
@@ -143,7 +133,7 @@ bq-clean-up: ## TRUNCATE audit + target tables (asks to confirm; CONFIRM=yes ski
 	done; \
 	echo "All tables truncated."
 
-errors: ## Peek at error events (not acked: they stay on the subscription for the future agent)
+errors: ## Peek at error events (not acked: they stay on the subscription for the agent in the Sherlock repo)
 	gcloud pubsub subscriptions pull $(ERROR_SUB) --project $(PROJECT_ID) --limit 10 \
 		--format 'json(message.attributes, message.data.decode(base64))'
 
@@ -180,46 +170,3 @@ airflow-test-launch-failure: ## Run one file through Airflow with a missing temp
 
 airflow-admin: ## Make your account Airflow Admin (sign in to the Airflow UI once first; new users get Viewer)
 	$(COMPOSER_RUN) users add-role -- -e $(AGENT_OPERATOR) -r Admin
-
-# --- df-agent (incident-response agent, see df-agent/df-agent.md) ------------------------------------
-
-agent-venv: ## Create .venv-agent with df-agent dependencies (separate from the Beam venv), incl. Chromium for PDF reports
-	python3.12 -m venv $(AGENT_VENV)
-	$(AGENT_VENV)/bin/pip install --upgrade pip
-	$(AGENT_VENV)/bin/pip install -r df-agent/requirements.txt
-	$(MAKE) agent-pdf-setup
-
-agent-pdf-setup: ## Install headless Chromium (~150 MB, once) used to render incident report PDFs
-	$(AGENT_VENV)/bin/playwright install chromium
-
-agent-test: ## df-agent unit + scenario tests (no GCP, no LLM)
-	cd df-agent && $(AGENT_PYTHON) -m pytest -q tests
-
-agent-brain-sync: ## Copy BQ schemas into the agent brain and check runbook/playbook coverage
-	mkdir -p df-agent/brain/schemas
-	cp infra/bq/job_metadata.json infra/bq/validation_metadata.json infra/bq/agent_incidents.json df-agent/brain/schemas/
-	cd df-agent && $(AGENT_PYTHON) -m incident_core.runner brain-check
-
-agent-listen: ## Run the agent: handle error events one at a time (Ctrl-C to stop)
-	cd df-agent && $(AGENT_ENV) $(AGENT_PYTHON) -m incident_core.runner listen
-
-agent-once: ## Handle at most one pending error event, then exit
-	cd df-agent && $(AGENT_ENV) $(AGENT_PYTHON) -m incident_core.runner once
-
-agent-replay: ## Re-investigate a job without Pub/Sub: make agent-replay JOB_ID=<job_id>
-	@test -n "$(JOB_ID)" || { echo "Usage: make agent-replay JOB_ID=<job_id>"; exit 1; }
-	cd df-agent && $(AGENT_ENV) $(AGENT_PYTHON) -m incident_core.runner replay --ref $(JOB_ID)
-
-agent-eval: ## Replay recorded incidents (df-agent/evals/cases) and report root-cause accuracy (offline)
-	cd df-agent && $(AGENT_ENV) $(AGENT_PYTHON) -m incident_core.runner eval
-
-agent-eval-add: ## Save an incident as an eval case: make agent-eval-add INCIDENT=<id> EXPECTED=CONFIG [NOTE="..."]
-	@test -n "$(INCIDENT)" -a -n "$(EXPECTED)" || { echo "Usage: make agent-eval-add INCIDENT=<id> EXPECTED=<CATEGORY>"; exit 1; }
-	cd df-agent && $(AGENT_PYTHON) -m incident_core.runner eval-add --incident $(INCIDENT) --expected $(EXPECTED) --note "$(NOTE)"
-
-agent-graph: ## Draw the agent workflow to df-agent/graph.mmd (offline); PNG=1 also renders graph.png via mermaid.ink
-	cd df-agent && $(AGENT_PYTHON) -m incident_core.runner graph $(if $(PNG),--png,)
-
-agent-approve: ## Approve pending non-code actions (e.g. retries): make agent-approve INCIDENT=<job_id>
-	@test -n "$(INCIDENT)" || { echo "Usage: make agent-approve INCIDENT=<incident_id>"; exit 1; }
-	cd df-agent && $(AGENT_ENV) $(AGENT_PYTHON) -m incident_core.runner approve --incident $(INCIDENT)

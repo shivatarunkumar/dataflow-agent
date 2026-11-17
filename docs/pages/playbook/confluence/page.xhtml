@@ -1,0 +1,113 @@
+<ac:structured-macro ac:name="toc" ac:schema-version="1"><ac:parameter ac:name="maxLevel">3</ac:parameter></ac:structured-macro>
+<p>Use this page when something has gone wrong. Find what you're seeing, then follow the steps.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">start-here</ac:parameter></ac:structured-macro>Start here</h2>
+<ol>
+<li><strong>Open the report.</strong> The agent writes one for each problem in <code>df-agent/actions/&lt;job id&gt;/report.pdf</code>. It tells you what failed and why.</li>
+<li><strong>Find your problem</strong> in the table below.</li>
+<li><strong>Follow the steps</strong>, then <ac:link ac:anchor="send-the-file-again"><ac:plain-text-link-body><![CDATA[send the file again]]></ac:plain-text-link-body></ac:link> if the steps say so.</li>
+</ol>
+<p>Not getting any reports? See <ac:link ac:anchor="the-agent-isnt-working"><ac:plain-text-link-body><![CDATA[The agent isn't working]]></ac:plain-text-link-body></ac:link>.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">what-are-you-seeing</ac:parameter></ac:structured-macro>What are you seeing?</h2>
+<table data-layout="default"><tbody>
+<tr><th>What you see</th><th>What it means</th><th>Go to</th></tr>
+<tr><td>File status is <strong>Rejected</strong></td><td>The file has a mistake</td><td><ac:link ac:anchor="the-file-has-a-mistake"><ac:plain-text-link-body><![CDATA[The file has a mistake]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>UnicodeDecodeError</code></td><td>The file is saved in the wrong text format</td><td><ac:link ac:anchor="wrong-text-format"><ac:plain-text-link-body><![CDATA[Wrong text format]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>invalid tar header</code> when building</td><td>The software package can't be built</td><td><ac:link ac:anchor="image-build-fails"><ac:plain-text-link-body><![CDATA[Image build fails]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>404</code> or <code>Unable to open template file</code></td><td>The software package is missing</td><td><ac:link ac:anchor="software-package-missing"><ac:plain-text-link-body><![CDATA[Software package missing]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>403</code> or <code>Access Denied</code></td><td>An account doesn't have permission</td><td><ac:link ac:anchor="permission-problem"><ac:plain-text-link-body><![CDATA[Permission problem]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>QUOTA_EXCEEDED</code></td><td>Too many jobs ran at once</td><td><ac:link ac:anchor="too-many-jobs"><ac:plain-text-link-body><![CDATA[Too many jobs]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>Not found: Table</code></td><td>A database table is missing</td><td><ac:link ac:anchor="missing-table"><ac:plain-text-link-body><![CDATA[Missing table]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td>Column or schema error</td><td>The file's rules and the table don't match</td><td><ac:link ac:anchor="rules-and-table-dont-match"><ac:plain-text-link-body><![CDATA[Rules and table don't match]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>zombie</code>, <code>killed</code> or <code>SIGTERM</code></td><td>Airflow restarted during the job</td><td><ac:link ac:anchor="airflow-restarted"><ac:plain-text-link-body><![CDATA[Airflow restarted]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>AirflowTaskTimeout</code></td><td>The job took more than 60 minutes</td><td><ac:link ac:anchor="job-took-too-long"><ac:plain-text-link-body><![CDATA[Job took too long]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td><code>RECON_MISMATCH</code></td><td>Rows loaded don't match the file</td><td><ac:link ac:anchor="row-counts-dont-match"><ac:plain-text-link-body><![CDATA[Row counts don't match]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td>An error in our code</td><td>A bug needs fixing</td><td><ac:link ac:anchor="bug-in-the-code"><ac:plain-text-link-body><![CDATA[Bug in the code]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td>Nothing happens after sending a file</td><td>The file wasn't picked up</td><td><ac:link ac:anchor="file-isnt-picked-up"><ac:plain-text-link-body><![CDATA[File isn't picked up]]></ac:plain-text-link-body></ac:link></td></tr>
+<tr><td>Anything else</td><td>The cause isn't clear</td><td><ac:link ac:anchor="get-help"><ac:plain-text-link-body><![CDATA[Get help]]></ac:plain-text-link-body></ac:link></td></tr>
+</tbody></table>
+<ac:structured-macro ac:name="info" ac:schema-version="1"><ac:parameter ac:name="title">Note</ac:parameter><ac:rich-text-body><p>If Ollama isn't running, the agent can wrongly blame the code for a <code>404</code> error. Follow <ac:link ac:anchor="software-package-missing"><ac:plain-text-link-body><![CDATA[Software package missing]]></ac:plain-text-link-body></ac:link> instead.</p></ac:rich-text-body></ac:structured-macro>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">send-the-file-again</ac:parameter></ac:structured-macro>Send the file again</h2>
+<p>Do this only after you've fixed the problem. Airflow must be on.</p>
+<p>If the report says a retry is waiting for approval:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make agent-approve INCIDENT=<job id>]]></ac:plain-text-body></ac:structured-macro>
+<p>Otherwise, copy the file back. The report tells you where the file is now.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[gcloud storage cp gs://bigquerytarun-dfa-landing/invalid/YYYY/MM/DD/<file> gs://bigquerytarun-dfa-landing/landing/<file>]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>It worked if</strong> the newest result for the file says <code>SUCCESS</code> and the rows loaded equal the rows in the file.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">problems-with-the-file</ac:parameter></ac:structured-macro>Problems with the file</h2>
+<p>These are for the person who sent the file to fix.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">the-file-has-a-mistake</ac:parameter></ac:structured-macro>The file has a mistake</h3>
+<p>Nothing was loaded. Don't send the same file again. Ask the sender to fix it and send a new one.</p>
+<table data-layout="default"><tbody>
+<tr><th>Failed check</th><th>What's wrong</th><th>What to ask for</th></tr>
+<tr><td><code>file_name</code></td><td>The name is wrong</td><td>A name like <code>customer_20261015.csv</code></td></tr>
+<tr><td><code>contract_match</code></td><td>We don't recognise this type of file</td><td>The right name, or ask an engineer to add the new type</td></tr>
+<tr><td><code>header</code></td><td>Column names are wrong</td><td>The correct column names, in the correct order</td></tr>
+<tr><td><code>delimiter</code></td><td>Columns aren't separated properly</td><td>The file saved again with commas between columns</td></tr>
+<tr><td><code>trailer</code></td><td>The last line is wrong or missing</td><td>The <strong>whole file again</strong>, because some rows may be missing</td></tr>
+<tr><td><code>data_type</code></td><td>Some values are empty or in the wrong format</td><td>Corrected values; the report lists them</td></tr>
+</tbody></table>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">wrong-text-format</ac:parameter></ac:structured-macro>Wrong text format</h3>
+<p>The file isn't saved as UTF-8. Ask the sender to save it as UTF-8 and send it again. Sending the same file again will fail the same way.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">problems-on-our-side</ac:parameter></ac:structured-macro>Problems on our side</h2>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">image-build-fails</ac:parameter></ac:structured-macro>Image build fails</h3>
+<p>Docker can't unpack a Google component that our software package is based on. Several versions have failed, and <strong>no fix is confirmed yet</strong>.</p>
+<p>Try these one at a time and stop when one works:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make docker]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make docker BASE_IMAGE=gcr.io/dataflow-templates-base/python312-template-launcher-base:flex_templates_base_image_release_20260803_RC00]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make docker BASE_IMAGE=gcr.io/dataflow-templates-base/python311-template-launcher-base:latest]]></ac:plain-text-body></ac:structured-macro>
+<p>When one works, tell an engineer which one, so it can be made the default.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">software-package-missing</ac:parameter></ac:structured-macro>Software package missing</h3>
+<p>Dataflow can't find the package it needs to start.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make docker
+make gcs-check]]></ac:plain-text-body></ac:structured-macro>
+<p>Then <ac:link ac:anchor="send-the-file-again"><ac:plain-text-link-body><![CDATA[send the file again]]></ac:plain-text-link-body></ac:link>.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">permission-problem</ac:parameter></ac:structured-macro>Permission problem</h3>
+<p>An account is missing a permission. The report names the account and the permission.</p>
+<ol>
+<li>Ask an engineer to add the permission in the <code>infra/iam.tf</code> file. Don't add it by hand in the console, because it can get lost.</li>
+<li>Run <code>make plan</code>, then <code>make gcs-setup</code>.</li>
+<li><ac:link ac:anchor="send-the-file-again"><ac:plain-text-link-body><![CDATA[Send the file again]]></ac:plain-text-link-body></ac:link>.</li>
+</ol>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">too-many-jobs</ac:parameter></ac:structured-macro>Too many jobs</h3>
+<p>Too many jobs ran at the same time. The agent normally retries by itself, so first check whether it already worked.</p>
+<p>If it keeps happening, ask an engineer to raise the Google Cloud limit, or run one job at a time with <code>make gcs-setup MAX_JOBS=1</code>.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">missing-table</ac:parameter></ac:structured-macro>Missing table</h3>
+<p>A database table doesn't exist. Run <code>make gcs-setup</code> to create it, then <ac:link ac:anchor="send-the-file-again"><ac:plain-text-link-body><![CDATA[send the file again]]></ac:plain-text-link-body></ac:link>.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">rules-and-table-dont-match</ac:parameter></ac:structured-macro>Rules and table don't match</h3>
+<p>The columns in the file's rules are different from the columns in the table. An engineer needs to make them match, then run <code>make gcs-setup</code> and <code>make docker</code>. Then <ac:link ac:anchor="send-the-file-again"><ac:plain-text-link-body><![CDATA[send the file again]]></ac:plain-text-link-body></ac:link>.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">airflow-restarted</ac:parameter></ac:structured-macro>Airflow restarted</h3>
+<p>Airflow restarted while it was working. This is temporary and the agent normally retries by itself. Check that the retry worked.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">job-took-too-long</ac:parameter></ac:structured-macro>Job took too long</h3>
+<p>The job ran for more than 60 minutes and was stopped. Look at the job in Dataflow to see why it was slow. Send the file again only if the cause was temporary.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">row-counts-dont-match</ac:parameter></ac:structured-macro>Row counts don't match</h3>
+<ac:structured-macro ac:name="warning" ac:schema-version="1"><ac:parameter ac:name="title">Warning</ac:parameter><ac:rich-text-body><p><strong>Don't send the file again yet.</strong> Some rows may already be loaded, so you could end up with duplicates.</p></ac:rich-text-body></ac:structured-macro>
+<p>Ask an engineer and the data owner to decide how to clean up. An engineer must find the cause before the file is sent again.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">bug-in-the-code</ac:parameter></ac:structured-macro>Bug in the code</h3>
+<p>An engineer needs to fix the code. The report shows where the error is. After the fix:</p>
+<table data-layout="default"><tbody>
+<tr><th>Bug is in</th><th>Run</th></tr>
+<tr><td>The <code>dags</code> folder</td><td><code>make dags-test</code>, then <code>make dags-deploy</code></td></tr>
+<tr><td>The <code>dataflow-job</code> folder</td><td><code>make test</code>, then <code>make docker</code></td></tr>
+</tbody></table>
+<p>Then <ac:link ac:anchor="send-the-file-again"><ac:plain-text-link-body><![CDATA[send the file again]]></ac:plain-text-link-body></ac:link>.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">file-isnt-picked-up</ac:parameter></ac:structured-macro>File isn't picked up</h3>
+<table data-layout="default"><tbody>
+<tr><th>Check</th><th>Fix</th></tr>
+<tr><td>Is Airflow on? Run <code>make gcs-check</code></td><td>If not, run <code>make airflow-up</code></td></tr>
+<tr><td>Is the file directly inside <code>landing/</code>?</td><td>If not, send it again to the right place</td></tr>
+<tr><td>Are other files ahead of it?</td><td>Wait: files run one at a time, about 6 minutes each</td></tr>
+</tbody></table>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">the-agent-isnt-working</ac:parameter></ac:structured-macro>The agent isn't working</h3>
+<table data-layout="default"><tbody>
+<tr><th>What you see</th><th>Fix</th></tr>
+<tr><td>No reports at all</td><td>Run <code>make agent-listen</code></td></tr>
+<tr><td><code>Connection refused</code></td><td>Run <code>ollama serve</code></td></tr>
+<tr><td><code>'change' is undefined</code>, or the same problem repeating</td><td>Stop the agent with Ctrl-C and run <code>make agent-listen</code> again</td></tr>
+</tbody></table>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">unexpected-costs</ac:parameter></ac:structured-macro>Unexpected costs</h2>
+<p>Airflow costs about $1 per hour while it's on. To switch it off:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make airflow-down]]></ac:plain-text-body></ac:structured-macro>
+<p>Your data and files are kept.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">get-help</ac:parameter></ac:structured-macro>Get help</h2>
+<p>Contact <strong>Data Platform Engineering</strong> on <strong>#data-platform-ops</strong>. Share the job id, the <code>report.pdf</code>, and what you've already tried.</p>
+<p>Code and setting changes need a ServiceNow change request. The agent drafts one for you in <code>change.md</code>, next to the report.</p>

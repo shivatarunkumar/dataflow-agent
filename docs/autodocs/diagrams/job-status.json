@@ -10,7 +10,7 @@
       "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+      "revision": "f8d708f10ddffad661614e26672a5b49625a69ea"
     }
   },
   "mainPath": [
@@ -28,10 +28,10 @@
       "tag": "no row yet",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 39,
-          "end_line": 71,
-          "label": "parse, filter, claim"
+          "path": "dags/dfa_common/logic.py",
+          "line": 20,
+          "end_line": 40,
+          "label": "file_event"
         }
       ]
     },
@@ -40,12 +40,12 @@
       "type": "active",
       "label": "Registered",
       "sublabel": "status IN_PROGRESS",
-      "tag": "workflow INSERT",
+      "tag": "DAG INSERT",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 218,
-          "end_line": 287,
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 138,
+          "end_line": 200,
           "label": "register_job"
         }
       ]
@@ -55,13 +55,13 @@
       "type": "waiting",
       "label": "Waiting for slot",
       "sublabel": "still IN_PROGRESS",
-      "tag": "60 s retry",
+      "tag": "in Airflow",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 293,
-          "end_line": 381,
-          "label": "acquire_slot"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 208,
+          "end_line": 216,
+          "label": "max_active_tis_per_dag"
         }
       ]
     },
@@ -79,10 +79,10 @@
           "label": "summarise_job"
         },
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 406,
-          "end_line": 438,
-          "label": "wait_for_dataflow"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 209,
+          "end_line": 240,
+          "label": "run_dataflow"
         }
       ]
     },
@@ -94,10 +94,15 @@
       "tag": "terminal",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 483,
-          "end_line": 523,
-          "label": "move_file"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 295,
+          "end_line": 307,
+          "label": "_move_file"
+        },
+        {
+          "path": "dags/dfa_common/logic.py",
+          "line": 72,
+          "end_line": 75
         }
       ]
     },
@@ -123,10 +128,10 @@
       "tag": "error event",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 462,
-          "end_line": 481,
-          "label": "mark_failed_if_needed"
+          "path": "dags/dfa_common/logic.py",
+          "line": 43,
+          "end_line": 53,
+          "label": "decide_outcome"
         },
         {
           "path": "dataflow-job/pipeline/transforms/audit.py",
@@ -144,9 +149,10 @@
       "tag": "terminal",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 231,
-          "end_line": 242
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 138,
+          "end_line": 200,
+          "label": "register_job"
         }
       ]
     }
@@ -156,7 +162,7 @@
       "id": "register",
       "from": "landed",
       "to": "in_progress",
-      "label": "claim + register",
+      "label": "run + register",
       "variant": "emphasis"
     },
     {
@@ -225,10 +231,10 @@
       "dot": "cyan",
       "title": "Who writes the status",
       "items": [
-        "The workflow inserts IN_PROGRESS or DUPLICATE_SKIPPED",
+        "register_job inserts IN_PROGRESS or DUPLICATE_SKIPPED",
         "The Dataflow MERGE sets SUCCESS, REJECTED or FAILED",
-        "Finalize forces FAILED when the job did not end JOB_STATE_DONE",
-        "FAILED also covers launch or poll errors and POLL_TIMEOUT"
+        "finalize forces FAILED when the job did not end JOB_STATE_DONE",
+        "AIRFLOW_TASK_FAILED means no Dataflow job was created"
       ]
     },
     {
@@ -244,7 +250,7 @@
       "dot": "slate",
       "title": "Not a state",
       "items": [
-        "A duplicate Pub/Sub delivery hits an existing claim (HTTP 412) and exits without writing a row"
+        "A duplicate Pub/Sub delivery maps to an existing DAG run_id and writes no row"
       ]
     }
   ]

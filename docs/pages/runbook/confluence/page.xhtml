@@ -1,0 +1,96 @@
+<ac:structured-macro ac:name="toc" ac:schema-version="1"><ac:parameter ac:name="maxLevel">3</ac:parameter></ac:structured-macro>
+<p>This page shows how to set up and run Dataflow-Agent, step by step. If something has gone wrong, use the <a href="https://shivatarunkumar.atlassian.net/wiki/spaces/~712020e41a8275c9054106bd81e51b882e6221/pages/720970/Dataflow-Agent+Playbook">Dataflow-Agent Playbook</a> instead.</p>
+<p>Run every command from the main project folder.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">before-you-start</ac:parameter></ac:structured-macro>Before you start</h2>
+<p>You need these on your computer:</p>
+<ul>
+<li>Google Cloud command-line tools (<code>gcloud</code>), signed in to the project <code>bigquerytarun</code></li>
+<li>Terraform</li>
+<li>Python 3.12</li>
+<li>Docker Desktop</li>
+<li>Ollama, which powers the agent</li>
+</ul>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">first-time-setup</ac:parameter></ac:structured-macro>First-time setup</h2>
+<p>You only do this once.</p>
+<p><strong>1. Install and test the code.</strong> This is free.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make venv
+make test
+make dags-test
+make agent-venv
+make agent-test]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>2. Create the cloud resources.</strong> This is free.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make plan
+make gcs-setup]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>3. Build the software package.</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make docker]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="warning" ac:schema-version="1"><ac:parameter ac:name="title">Warning</ac:parameter><ac:rich-text-body><p>This step currently fails with an <code>invalid tar header</code> error. See <a href="https://shivatarunkumar.atlassian.net/wiki/spaces/~712020e41a8275c9054106bd81e51b882e6221/pages/720970/Dataflow-Agent+Playbook">Image build fails</a> in the Playbook.</p></ac:rich-text-body></ac:structured-macro>
+<p><strong>4. Check that everything is there.</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make gcs-check]]></ac:plain-text-body></ac:structured-macro>
+<p>A warning that &quot;Composer is down&quot; is normal at this point.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">each-time-you-use-it</ac:parameter></ac:structured-macro>Each time you use it</h2>
+<p><strong>1. Switch Airflow on.</strong> This takes about 25 minutes, and <strong>billing starts here</strong>.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make airflow-up]]></ac:plain-text-body></ac:structured-macro>
+<p>The first time only, open Airflow and sign in, then give yourself admin access:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make airflow-ui
+make airflow-admin]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>2. Start the agent.</strong> Use two extra terminal windows, one for each command, and leave them running.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[ollama serve]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make agent-listen]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>3. Send a file.</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[gcloud storage cp customer_20261015.csv gs://bigquerytarun-dfa-landing/landing/]]></ac:plain-text-body></ac:structured-macro>
+<p>Airflow picks it up within 2 minutes. Each file takes about 6 minutes, and files run one at a time.</p>
+<p><strong>4. Check the result.</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make airflow-runs]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>5. Switch Airflow off when you finish.</strong> This takes about 10 minutes, and <strong>billing stops</strong>. Your data and files are kept.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">bash</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[make airflow-down]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="warning" ac:schema-version="1"><ac:parameter ac:name="title">Warning</ac:parameter><ac:rich-text-body><p>Always do this step. Airflow costs about $1 per hour for as long as it's on, even if nothing is running.</p></ac:rich-text-body></ac:structured-macro>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">what-a-file-must-look-like</ac:parameter></ac:structured-macro>What a file must look like</h2>
+<table data-layout="default"><tbody>
+<tr><th>Rule</th><th>Example</th></tr>
+<tr><td>The name is the type of data, then the date</td><td><code>customer_20261015.csv</code></td></tr>
+<tr><td>It's a CSV file</td><td>Excel files are rejected</td></tr>
+<tr><td>The first line has the right column names</td><td>They must match the contract</td></tr>
+<tr><td>The last line says how many rows there are, and the date</td><td>See the example below</td></tr>
+</tbody></table>
+<p>For a file with 5 rows, dated 15 October 2026, the last line is:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">text</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[T|5|20261015]]></ac:plain-text-body></ac:structured-macro>
+<p>Today we accept three types of data: <code>customer</code>, <code>user</code> and <code>orders</code>.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">where-to-see-what-happened</ac:parameter></ac:structured-macro>Where to see what happened</h2>
+<p>Run this in BigQuery to see the latest files and their results:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1"><ac:parameter ac:name="language">sql</ac:parameter><ac:parameter ac:name="linenumbers">false</ac:parameter><ac:plain-text-body><![CDATA[SELECT file_name, status, rows_in_file, rows_loaded, created_at
+FROM `bigquerytarun.file_audit.job_metadata`
+ORDER BY created_at DESC LIMIT 20;]]></ac:plain-text-body></ac:structured-macro>
+<p>When a file fails, the agent puts these in <code>df-agent/actions/&lt;job id&gt;/</code>:</p>
+<ul>
+<li><code>report.pdf</code>: what happened, and why</li>
+<li><code>change.md</code>: a ready-made ServiceNow change request, if a fix is needed</li>
+</ul>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">how-it-works-in-pictures</ac:parameter></ac:structured-macro>How it works, in pictures</h2>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">the-journey-of-one-file</ac:parameter></ac:structured-macro>The journey of one file</h3>
+<p><ac:image ac:align="center" ac:layout="center" ac:alt="The journey of one file" ac:original-width="2170" ac:original-height="2136" ac:width="760"><ri:attachment ri:filename="ingest-file.png" /></ac:image></p>
+<p>Airflow picks up the file, records it, asks Dataflow to process it, waits, and then files it away. If there was a problem, it tells the agent.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">the-result-of-a-file</ac:parameter></ac:structured-macro>The result of a file</h3>
+<p><ac:image ac:align="center" ac:layout="center" ac:alt="The result of a file" ac:original-width="2636" ac:original-height="844" ac:width="760"><ri:attachment ri:filename="job-status.png" /></ac:image></p>
+<p>Every file ends as success, rejected, failed or skipped. A failed or rejected file can be sent again, and it's treated as a new file.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">how-a-file-gets-checked</ac:parameter></ac:structured-macro>How a file gets checked</h3>
+<p><ac:image ac:align="center" ac:layout="center" ac:alt="How a file gets checked" ac:original-width="2136" ac:original-height="1440" ac:width="760"><ri:attachment ri:filename="beam-pipeline.png" /></ac:image></p>
+<p>The file is checked first and loaded only if every check passes. Afterwards, the number of rows loaded is compared with the number in the file.</p>
+<h3><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">how-the-agent-investigates</ac:parameter></ac:structured-macro>How the agent investigates</h3>
+<p><ac:image ac:align="center" ac:layout="center" ac:alt="How the agent investigates" ac:original-width="1872" ac:original-height="1068" ac:width="760"><ri:attachment ri:filename="agent-incident.png" /></ac:image></p>
+<p>The agent collects the evidence, works out the cause, and decides what to do. A fixed set of safety rules has the final say on any action.</p>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">making-changes</ac:parameter></ac:structured-macro>Making changes</h2>
+<table data-layout="default"><tbody>
+<tr><th>What changed</th><th>What to run</th></tr>
+<tr><td>Airflow steps (the <code>dags</code> folder)</td><td><code>make dags-test</code>, then <code>make dags-deploy</code></td></tr>
+<tr><td>File checks or rules (the <code>dataflow-job</code> folder)</td><td><code>make test</code>, then <code>make docker</code></td></tr>
+<tr><td>Cloud resources (the <code>infra</code> folder)</td><td><code>make plan</code>, then <code>make gcs-setup</code></td></tr>
+</tbody></table>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">clearing-test-data</ac:parameter></ac:structured-macro>Clearing test data</h2>
+<ac:structured-macro ac:name="warning" ac:schema-version="1"><ac:parameter ac:name="title">Warning</ac:parameter><ac:rich-text-body><p>These commands permanently delete data.</p></ac:rich-text-body></ac:structured-macro>
+<table data-layout="default"><tbody>
+<tr><th>Command</th><th>What it deletes</th></tr>
+<tr><td><code>make bq-clean-up</code></td><td>All rows in the log tables and data tables</td></tr>
+<tr><td><code>make gcs-destroy</code></td><td>Everything: all cloud resources, files and tables</td></tr>
+</tbody></table>
+<h2><ac:structured-macro ac:name="anchor"><ac:parameter ac:name="">technical-details</ac:parameter></ac:structured-macro>Technical details</h2>
+<p>The full engineering documentation, including every setting, is in the code repository: <a href="https://github.com/shivatarunkumar/dataflow-agent/tree/feat-df-airflow-new">dataflow-agent on GitHub</a>.</p>

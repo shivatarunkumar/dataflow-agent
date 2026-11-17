@@ -89,7 +89,7 @@ test sessions (section 13).
 ```
 Makefile                 make targets (section 8)
 project.md               this document
-infra/                   Terraform: GCS, Pub/Sub, Composer 3, BQ, IAM, Artifact Registry, df-agent
+infra/                   Terraform: GCS, Pub/Sub, Composer 3, BQ, IAM, Artifact Registry, df-agent SA/IAM/table
   composer.tf            Composer 3 environment (count = enable_composer) + its service account
   bq/*.json              BQ table schemas
 dags/                    Airflow DAGs (copied to the Composer DAG bucket by make dags-deploy)
@@ -98,7 +98,7 @@ dags/                    Airflow DAGs (copied to the Composer DAG bucket by make
   dfa_common/            config (env vars set by Terraform), BigQuery/GCS/Dataflow helpers, error-event builder
   tests/                 DAG import + unit tests (no Airflow server, no GCP)
 dataflow-job/            Beam pipeline (Flex Template).
-df-agent/                incident agent (section 15, df-agent/df-agent.md)
+(agent)                  moved to Intelligent-Incident-Manager/Sherlock (section 13)
 scripts/gcs_check.sh     resource health check (make gcs-check)
 mockdata/                sample good/bad files + generate.py
 ```
@@ -210,14 +210,13 @@ Unchanged files and expectations. The two agent scenarios now run through Airflo
 ```bash
 make dags-test                 # DAG import + unit tests (local, no GCP)
 make test                      # pipeline unit tests
-make agent-test                # agent tests (incl. new Airflow tools and v2 events)
 make plan && make gcs-setup    # everything except Composer
 make docker                    # only if the image/spec changed
 make airflow-up                # ~25 min: Composer env + DAG upload   ← billing starts
 make airflow-ui                # open the UI, unpause both DAGs if needed
 make upload-mock               # full flow
 make airflow-runs              # watch DAG runs (or the Airflow UI)
-make agent-listen              # investigate failures as they arrive
+(Sherlock) make agent-listen   # investigate failures as they arrive (agent repo)
 make airflow-down              # ~10 min                               ← billing stops
 ```
 
@@ -233,8 +232,13 @@ make airflow-down              # ~10 min                               ← billi
 billing budget alert (e.g. £5) is recommended (command in section 14).
 
 ## 13. Agent
-The df-agent design is unchanged apart from the Airflow investigation in section 15. Full details will be in
-`df-agent/df-agent.md` §20.
+Since 2026-11-17 the incident agent lives in its own repo, `Intelligent-Incident-Manager/Sherlock` (design:
+`Sherlock/df-agent.md`, §23 for the move). This repo still **creates every GCP resource the agent uses**: the
+`dfa-agent` SA and its least-privilege IAM, the `file_audit.agent_incidents` table, the `dfa-ingest-errors-sub`
+subscription it pulls, and the `agent_operator` impersonation grant (`infra/agent.tf`). Sherlock creates nothing; it
+reads these names from its `.env` (values = `terraform -chdir=infra output`). The contract between the two repos is
+the error event (section 7a), the audit tables (section 7) and the Airflow investigation path (section 15).
+If you change a BQ schema in `infra/bq/`, copy it to `Sherlock/knowledge/schemas/` too.
 
 ## 14. Open items / things to check on first run
 - Confirm `composer-3-airflow-2.10.5` is still offered in europe-west2 (Composer "Version list" docs page, or the version picker in the console's Create environment form). Override with `-var composer_image=…`; switching to an Airflow 3 image needs a DAG review first.

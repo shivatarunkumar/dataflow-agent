@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "Per-file ingestion: dfa-ingest-file execution",
+    "title": "Per-file ingestion: Pub/Sub to Airflow to Dataflow",
     "output": "docs/autodocs/diagrams/ingest-file.html",
     "quality_profile": "showcase",
     "locale": "en",
@@ -10,60 +10,58 @@
       "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+      "revision": "f8d708f10ddffad661614e26672a5b49625a69ea"
     }
   },
   "participants": [
     {
-      "id": "eventarc",
+      "id": "filesub",
       "type": "messagebus",
-      "label": "Eventarc",
-      "sublabel": "dfa-file-landed",
+      "label": "File subscription",
+      "sublabel": "dfa-file-landed-airflow",
       "sources": [
         {
-          "path": "infra/workflows.tf",
-          "line": 33,
-          "end_line": 58
+          "path": "infra/pubsub.tf",
+          "line": 27,
+          "end_line": 43
         }
       ]
     },
     {
-      "id": "workflow",
+      "id": "listener",
       "type": "backend",
-      "label": "Workflow",
-      "sublabel": "dfa-ingest-file",
+      "label": "Listener DAG",
+      "sublabel": "pubsub_file_listener",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 11,
-          "end_line": 165,
-          "label": "main"
+          "path": "dags/pubsub_file_listener.py",
+          "line": 18,
+          "end_line": 59
         },
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 441,
-          "end_line": 567,
-          "label": "finalize_job"
+          "path": "dags/dfa_common/logic.py",
+          "line": 15,
+          "end_line": 40,
+          "label": "file_event, run_id"
         }
       ]
     },
     {
-      "id": "dfbucket",
-      "type": "database",
-      "label": "Dataflow bucket",
-      "sublabel": "claims/ locks/",
+      "id": "ingest",
+      "type": "backend",
+      "label": "Ingest DAG",
+      "sublabel": "gcs_to_bq_dataflow",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 168,
-          "end_line": 200,
-          "label": "claim_delivery"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 136,
+          "end_line": 292
         },
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 290,
-          "end_line": 403,
-          "label": "acquire/release slot"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 243,
+          "end_line": 290,
+          "label": "finalize"
         }
       ]
     },
@@ -74,9 +72,9 @@
       "sublabel": "BigQuery",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 203,
-          "end_line": 287,
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 138,
+          "end_line": 200,
           "label": "register_job"
         },
         {
@@ -99,10 +97,16 @@
           "end_line": 126
         },
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 406,
-          "end_line": 438,
-          "label": "wait_for_dataflow"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 209,
+          "end_line": 240,
+          "label": "run_dataflow"
+        },
+        {
+          "path": "dags/dfa_common/dataflow.py",
+          "line": 6,
+          "end_line": 20,
+          "label": "find_job"
         }
       ]
     },
@@ -126,10 +130,10 @@
       "sublabel": "GCS",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 483,
-          "end_line": 523,
-          "label": "move_file"
+          "path": "dags/gcs_to_bq_dataflow.py",
+          "line": 295,
+          "end_line": 307,
+          "label": "_move_file"
         }
       ]
     },
@@ -140,10 +144,9 @@
       "sublabel": "Pub/Sub",
       "sources": [
         {
-          "path": "workflows/ingest_file.yaml",
-          "line": 570,
-          "end_line": 727,
-          "label": "publish_failure"
+          "path": "dags/dfa_common/events.py",
+          "line": 36,
+          "end_line": 81
         }
       ]
     }
@@ -152,12 +155,12 @@
     {
       "from": 150,
       "to": 452,
-      "label": "Claim and register"
+      "label": "Trigger and register"
     },
     {
       "from": 457,
       "to": 710,
-      "label": "Slot, launch and wait"
+      "label": "Launch and wait"
     },
     {
       "from": 715,
@@ -167,75 +170,69 @@
   ],
   "messages": [
     {
-      "id": "cloud-event",
-      "from": "eventarc",
-      "to": "workflow",
+      "id": "pull",
+      "from": "listener",
+      "to": "filesub",
       "y": 170,
-      "label": "CloudEvent",
+      "label": "pull, ack (every 2 min)",
       "variant": "emphasis",
       "note": "Skips other event types and objects outside landing/"
     },
     {
-      "id": "claim",
-      "from": "workflow",
-      "to": "dfbucket",
-      "y": 225,
-      "label": "create claim (gen match 0)",
-      "note": "HTTP 412 means a duplicate delivery: stop and write nothing"
-    },
-    {
-      "id": "claimed",
-      "from": "dfbucket",
-      "to": "workflow",
-      "y": 295,
-      "label": "claimed",
+      "id": "files",
+      "from": "filesub",
+      "to": "listener",
+      "y": 240,
+      "label": "file notifications",
       "variant": "return"
     },
     {
+      "id": "trigger",
+      "from": "listener",
+      "to": "ingest",
+      "y": 270,
+      "label": "trigger run",
+      "variant": "emphasis",
+      "note": "run_id from the generation: a duplicate delivery is skipped"
+    },
+    {
       "id": "prior",
-      "from": "workflow",
+      "from": "ingest",
       "to": "audit",
-      "y": 325,
+      "y": 340,
       "label": "count prior attempts"
     },
     {
       "id": "prior-rows",
       "from": "audit",
-      "to": "workflow",
-      "y": 353,
+      "to": "ingest",
+      "y": 368,
       "label": "attempts, successes",
       "variant": "return"
     },
     {
       "id": "register",
-      "from": "workflow",
+      "from": "ingest",
       "to": "audit",
-      "y": 383,
+      "y": 398,
       "label": "INSERT IN_PROGRESS",
       "variant": "emphasis",
       "note": "Already SUCCESS: insert DUPLICATE_SKIPPED and stop"
     },
     {
-      "id": "lock",
-      "from": "workflow",
-      "to": "dfbucket",
-      "y": 465,
-      "label": "create slot lock",
-      "note": "All slots busy: sleep 60 s; locks older than 2 h are cleared"
-    },
-    {
       "id": "launch",
-      "from": "workflow",
+      "from": "ingest",
       "to": "dataflow",
-      "y": 525,
+      "y": 475,
       "label": "flexTemplates.launch",
-      "variant": "emphasis"
+      "variant": "emphasis",
+      "note": "Limited by max_active_tis_per_dag; other files stay scheduled"
     },
     {
       "id": "load",
       "from": "dataflow",
       "to": "raw",
-      "y": 555,
+      "y": 540,
       "label": "FILE_LOADS append",
       "variant": "emphasis",
       "note": "Only when every pre-load check passed"
@@ -244,35 +241,35 @@
       "id": "audit-write",
       "from": "dataflow",
       "to": "audit",
-      "y": 605,
+      "y": 600,
       "label": "checks + MERGE status"
     },
     {
-      "id": "poll",
-      "from": "workflow",
+      "id": "wait",
+      "from": "ingest",
       "to": "dataflow",
-      "y": 635,
-      "label": "jobs.get every 60 s",
-      "note": "Up to 60 polls, then POLL_TIMEOUT"
+      "y": 630,
+      "label": "wait until finished",
+      "note": "60-minute task timeout, then Airflow cancels the job"
     },
     {
       "id": "state",
       "from": "dataflow",
-      "to": "workflow",
-      "y": 690,
+      "to": "ingest",
+      "y": 700,
       "label": "terminal state",
       "variant": "return"
     },
     {
-      "id": "unlock",
-      "from": "workflow",
-      "to": "dfbucket",
+      "id": "find",
+      "from": "ingest",
+      "to": "dataflow",
       "y": 735,
-      "label": "delete slot lock"
+      "label": "find ingest-<job_id>"
     },
     {
       "id": "status",
-      "from": "workflow",
+      "from": "ingest",
       "to": "audit",
       "y": 765,
       "label": "read status",
@@ -280,7 +277,7 @@
     },
     {
       "id": "move",
-      "from": "workflow",
+      "from": "ingest",
       "to": "landing",
       "y": 825,
       "label": "copy to archive/ or invalid/",
@@ -288,14 +285,14 @@
     },
     {
       "id": "final-path",
-      "from": "workflow",
+      "from": "ingest",
       "to": "audit",
       "y": 895,
       "label": "UPDATE final_file_path"
     },
     {
       "id": "publish",
-      "from": "workflow",
+      "from": "ingest",
       "to": "errtopic",
       "y": 925,
       "label": "publish error event",
@@ -305,24 +302,30 @@
   ],
   "activations": [
     {
-      "participant": "workflow",
+      "participant": "listener",
       "from": 170,
+      "to": 290,
+      "type": "backend"
+    },
+    {
+      "participant": "ingest",
+      "from": 270,
       "to": 955,
       "type": "backend"
     },
     {
       "participant": "dataflow",
-      "from": 525,
-      "to": 695,
+      "from": 475,
+      "to": 705,
       "type": "backend"
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Exactly one job per generation",
+      "title": "One run per generation",
       "items": [
-        "The claim object makes duplicate Pub/Sub deliveries exit before any BigQuery write",
+        "A redelivered Pub/Sub message maps to the same run_id, and Airflow skips it",
         "A file generation that already loaded successfully is recorded as DUPLICATE_SKIPPED"
       ]
     },
@@ -330,16 +333,16 @@
       "dot": "amber",
       "title": "Concurrency",
       "items": [
-        "DFA_MAX_CONCURRENT_JOBS slots (default 1) because of the IN_USE_ADDRESSES quota",
-        "The lock is always released, even after a launch or poll error"
+        "DFA_MAX_CONCURRENT_JOBS (default 1) because of the IN_USE_ADDRESSES quota",
+        "Waiting files are scheduled Airflow task instances, so no lock objects are needed"
       ]
     },
     {
       "dot": "rose",
       "title": "Failure outcome",
       "items": [
-        "A FAILED status raises an error so the workflow execution itself fails",
-        "A failed publish is logged and does not change the job outcome"
+        "A FAILED status fails finalize, so the DAG run is red; REJECTED stays green",
+        "If finalize never reported it, a DAG failure callback publishes a minimal event"
       ]
     }
   ]

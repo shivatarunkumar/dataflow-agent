@@ -10,7 +10,7 @@
       "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+      "revision": "f8d708f10ddffad661614e26672a5b49625a69ea"
     }
   },
   "lanes": [
@@ -82,8 +82,8 @@
         },
         {
           "path": "df-agent/domains/dataflow_ingest/pack.py",
-          "line": 66,
-          "end_line": 90,
+          "line": 99,
+          "end_line": 124,
           "label": "incident_check, severity"
         }
       ]
@@ -129,12 +129,18 @@
       "col": 1,
       "type": "cloud",
       "label": "gcp_agent",
-      "sublabel": "Dataflow, Logging, IAM",
+      "sublabel": "Airflow, Dataflow, IAM",
       "sources": [
         {
           "path": "df-agent/domains/dataflow_ingest/tools_gcp.py",
-          "line": 62,
-          "end_line": 226
+          "line": 67,
+          "end_line": 299
+        },
+        {
+          "path": "df-agent/domains/dataflow_ingest/clients.py",
+          "line": 90,
+          "end_line": 124,
+          "label": "read-only Airflow API"
         }
       ]
     },
@@ -257,12 +263,18 @@
       "col": 1,
       "type": "backend",
       "label": "report_writer",
-      "sublabel": "actions/<id>/ md, pdf, json",
+      "sublabel": "report.pdf, change.md",
       "sources": [
         {
           "path": "df-agent/incident_core/report/writer.py",
-          "line": 23,
-          "end_line": 76
+          "line": 43,
+          "end_line": 103
+        },
+        {
+          "path": "df-agent/domains/dataflow_ingest/change.py",
+          "line": 402,
+          "end_line": 403,
+          "label": "ServiceNow draft"
         }
       ]
     },
@@ -413,7 +425,16 @@
       "title": "Outcomes",
       "items": [
         "AUTO_RESOLVED only when every executed action succeeded and nothing waits on a human",
-        "Otherwise AWAITING_HUMAN, with the report in actions/<incident_id>/"
+        "Otherwise AWAITING_HUMAN, with report.pdf and change.md in actions/<incident_id>/"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Top-down evidence",
+      "items": [
+        "gcp_agent reads the Airflow DAG run, task states and failed task log first",
+        "Then the Dataflow job, its errors and step logs, then quotas and active jobs",
+        "The report names the failing layer: AIRFLOW, DATAFLOW, PIPELINE or DATA"
       ]
     }
   ]

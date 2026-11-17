@@ -9,7 +9,6 @@ Project `bigquerytarun`, region `europe-west2`. Run everything from the repo roo
 ```bash
 make dags-test                        # DAG logic + error-event tests
 make test                             # Dataflow pipeline tests
-make agent-venv && make agent-test    # (re)create the agent venv, incl. Chromium; then agent tests
 ```
 
 ## 2. Create / update the infrastructure (free)
@@ -52,24 +51,8 @@ make errors              # peek at error events waiting for the agent (not acked
 Files dropped while Composer is down wait on Pub/Sub (7 days) and are processed after `make airflow-up`.
 
 ## 6. Run the agent (another terminal)
-```bash
-ollama serve                                   # if Ollama isn't already running (model: llama3.2)
-make agent-listen                              # handle error events as they arrive (Ctrl-C to stop)
-make agent-once                                # or: handle one pending event, then exit
-make agent-replay JOB_ID=<job_id>              # re-investigate a job (no Pub/Sub needed)
-make agent-approve INCIDENT=<job_id>           # approve a pending retry after fixing the cause
-```
-Output per incident in `df-agent/actions/<job_id>/`:
-- `report.pdf`: the incident report
-- `change.md`: ServiceNow change request draft, or why none is needed
-- `details/`: `report.md`, `evidence.json`, `trace.md`, `llm/`, … (supporting files)
-
-What to expect:
-| Test file | Failing layer | Root cause |
-|---|---|---|
-| `customer_20261021.csv` | DATAFLOW | CODE_BUG (encoding) |
-| `user_20261016.csv` | DATA | DATA_QUALITY (header) |
-| launch-failure test | AIRFLOW | CONFIG (template not found) |
+The agent now lives in the **`Intelligent-Incident-Manager/Sherlock`** repo. Follow its COMMANDS.md
+(`make agent-listen`, `agent-once`, `agent-replay`, `agent-approve`). It uses the resources this repo creates.
 
 ## 7. Check results in BigQuery
 ```sql

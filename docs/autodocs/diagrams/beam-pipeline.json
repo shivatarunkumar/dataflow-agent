@@ -10,7 +10,7 @@
       "url": "https://github.com/shivatarunkumar/dataflow-agent.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "eb185bcc3522e5ef5d4f22a9f2d48f1aaf233391"
+      "revision": "f8d708f10ddffad661614e26672a5b49625a69ea"
     }
   },
   "stages": [
